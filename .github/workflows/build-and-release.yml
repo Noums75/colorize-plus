@@ -19,7 +19,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # The locked VSCE dependency tree contains packages which require
+          # Node 22. Running it on Node 20 makes the packaging step fail.
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
