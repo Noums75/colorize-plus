@@ -43,6 +43,10 @@ npm run check
 npm run build
 ```
 
+Development and packaging require Node.js 22 or newer. This matches the
+runtime used by the GitHub Actions workflow and the requirements of the locked
+VSCE dependency tree.
+
 The build command creates an installable `vscode-colorize-<version>.vsix` file
 in the project root.
 

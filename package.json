@@ -5,7 +5,14 @@
   "version": "1.0.0",
   "publisher": "colorize-fivem",
   "license": "MIT",
-  "engines": { "vscode": "^1.85.0" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Noums75/colorize-plus.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=22"
+  },
   "categories": ["Other"],
   "keywords": ["color", "colour", "lua", "fivem", "css"],
   "activationEvents": ["onStartupFinished"],
@@ -16,7 +23,7 @@
     "check": "node --check src/extension.js && node --check src/color-parser.js"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.6.2"
+    "@vscode/vsce": "3.9.2"
   },
   "contributes": {
     "commands": [
