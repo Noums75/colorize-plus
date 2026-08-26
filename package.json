@@ -11,8 +11,12 @@
   "activationEvents": ["onStartupFinished"],
   "main": "./src/extension.js",
   "scripts": {
+    "build": "vsce package",
     "test": "node --test test/*.test.js",
     "check": "node --check src/extension.js && node --check src/color-parser.js"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.2"
   },
   "contributes": {
     "commands": [
