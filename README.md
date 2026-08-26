@@ -37,8 +37,18 @@ file externally. Configuration and document edits refresh automatically.
 ## Development
 
 ```sh
+npm install
 npm test
 npm run check
+npm run build
 ```
+
+The build command creates an installable `vscode-colorize-<version>.vsix` file
+in the project root.
+
+GitHub Actions runs the tests and builds the VSIX on every push and pull
+request. On the default branch, a version matching `X.0.0` in `package.json`
+automatically creates the corresponding `vX.0.0` GitHub release and attaches
+the built extension. Existing releases are never overwritten.
 
 Press `F5` in VS Code to launch an Extension Development Host.
