@@ -1,7 +1,7 @@
 {
   "name": "vscode-colorize",
   "displayName": "Colorize",
-  "description": "Visualize CSS colors in your files, now with first-class Lua and FiveM support.",
+  "description": "Visualize CSS colors with legacy Colorize behavior plus first-class Lua and FiveM support.",
   "version": "1.0.0",
   "publisher": "colorize-fivem",
   "license": "MIT",
@@ -14,7 +14,7 @@
     "node": ">=22"
   },
   "categories": ["Other"],
-  "keywords": ["color", "colour", "lua", "fivem", "css"],
+  "keywords": ["color", "colour", "lua", "fivem", "css", "scss", "less", "stylus"],
   "activationEvents": ["onStartupFinished"],
   "main": "./src/extension.js",
   "scripts": {
@@ -38,39 +38,62 @@
           "items": { "type": "string" },
           "description": "Language identifiers in which colors are decorated. Lua is enabled by default."
         },
+        "colorize.include": {
+          "type": "array",
+          "default": ["**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.styl"],
+          "items": { "type": "string" },
+          "description": "Legacy Colorize glob patterns for including files and folders."
+        },
+        "colorize.exclude": {
+          "type": "array",
+          "default": ["**/.git", "**/.svn", "**/.hg", "**/CVS", "**/.DS_Store", "**/node_modules", "**/bower_components", "**/tmp", "**/dist", "**/tests"],
+          "items": { "type": "string" },
+          "description": "Legacy Colorize glob patterns for files and folders that must not be colorized or scanned for variables."
+        },
         "colorize.files": {
           "type": "array",
           "default": ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.html", "**/*.vue", "**/*.svelte", "**/*.lua"],
           "items": { "type": "string" },
-          "description": "Glob patterns for additional files to colorize. This is the original Colorize option."
+          "description": "Additional glob patterns kept for compatibility with earlier Colorize configurations."
         },
         "colorize.files_extensions": {
           "type": "array",
-          "default": [".css", ".scss", ".sass", ".less", ".html", ".htm", ".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".lua"],
+          "default": [".css", ".scss", ".sass", ".less", ".styl", ".html", ".htm", ".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".lua"],
           "items": { "type": "string" },
           "description": "File extensions supported in addition to language identifiers. Kept for compatibility with Colorize."
         },
+        "colorize.decoration_type": {
+          "type": "string",
+          "enum": ["background", "underline", "outline", "dot", "square-dot"],
+          "default": "background",
+          "description": "Legacy Colorize decoration style."
+        },
+        "colorize.ruler_decoration": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show detected colors in the editor overview ruler (scroll bar), as in the original Colorize extension."
+        },
         "colorize.colorized_colors": {
           "type": "array",
-          "default": ["BROWSERS_COLORS", "HEXA", "RGB", "HSL", "LUA", "FIVEM"],
-          "items": { "type": "string", "enum": ["BROWSERS_COLORS", "HEXA", "RGB", "HSL", "NAMES", "LUA", "FIVEM"] },
-          "description": "Color syntaxes to display. The legacy Colorize setting is preserved and extended with LUA and FIVEM."
+          "default": ["BROWSERS_COLORS", "HEXA", "RGB", "HSL", "OKLAB", "OKLCH", "LUA", "FIVEM"],
+          "items": { "type": "string", "enum": ["BROWSERS_COLORS", "HEXA", "RGB", "HSL", "ARGB", "OKLAB", "OKLCH", "NAMES", "LUA", "FIVEM"] },
+          "description": "Color syntaxes to display. Legacy Colorize syntaxes are preserved and extended with LUA and FIVEM."
         },
         "colorize.colorized_variables": {
           "type": "array",
           "default": ["CSS", "SASS", "LESS"],
-          "items": { "type": "string", "enum": ["CSS", "SASS", "LESS"] },
-          "description": "Variable families whose references can inherit a detected color."
+          "items": { "type": "string", "enum": ["CSS", "SASS", "LESS", "STYLUS"] },
+          "description": "Variable families whose references inherit the color of their declaration."
         },
         "colorize.enable_search_variables": {
           "type": "boolean",
           "default": false,
-          "description": "Colorize references to CSS custom properties, Sass variables and Less variables."
+          "description": "Scan matching workspace files for CSS, Sass, Less and Stylus color variables so references work across files. Disabled by default to preserve Colorize Plus startup performance."
         },
         "colorize.hide_current_line_decorations": {
           "type": "boolean",
           "default": false,
-          "description": "Hide decorations on the active line."
+          "description": "Hide decorations on every active selection line."
         },
         "colorize.lua.enableTables": {
           "type": "boolean",
