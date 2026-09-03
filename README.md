@@ -16,10 +16,11 @@ Colorize Plus keeps the original **Colorize** settings and behavior while adding
 
 - Lua hexadecimal integers such as `0xFF8800`.
 - Color-assigned Lua tables such as `color = { 255, 136, 0, 200 }`.
+- Keyed RGB/RGBA palette entries inside color tables, for example `CategoryColors = { Staff = { 125, 0, 125 }, ["Météo"] = { 56, 189, 248 } }`.
 - FiveM caret formatting codes (`^1` … `^9`).
 - FiveM HUD formatting codes such as `~r~`, `~g~`, `~b~`, `~y~` and `~w~`.
 
-Lua table matching deliberately requires a color-like variable name, so ordinary coordinate tables are not incorrectly highlighted.
+Lua table matching recognizes direct color-like assignments and keyed RGB/RGBA entries nested inside tables whose name contains `color`, `colour` or `palette`. Ordinary coordinate tables such as `coords = { 255, 64, 0 }` remain ignored.
 
 ## Settings
 

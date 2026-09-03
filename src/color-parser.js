@@ -178,6 +178,38 @@ function pushMatches(results, text, regex, syntax, colorFromMatch, priority) {
     if (color) results.push({ start: match.index, end: match.index + match[0].length, color, syntax, text: match[0], priority });
   }
 }
+
+function findClosingBrace(text, openIndex) {
+  let depth = 0;
+  for (let index = openIndex; index < text.length; index += 1) {
+    if (text[index] === '{') depth += 1;
+    else if (text[index] === '}') {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+function pushLuaPaletteTables(results, text, priority) {
+  const palettes = /\b[A-Za-z_][\w]*(?:colou?r|palette)[\w]*\s*=\s*\{/gi;
+  const entries = /(?:\[\s*(?:"[^"]*"|'[^']*')\s*\]|[A-Za-z_][\w]*)\s*=\s*(\{\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d{1,3}))?\s*\})/g;
+  for (const palette of text.matchAll(palettes)) {
+    const openIndex = palette.index + palette[0].lastIndexOf('{');
+    const closeIndex = findClosingBrace(text, openIndex);
+    if (closeIndex === -1) continue;
+    const bodyStart = openIndex + 1;
+    const body = text.slice(bodyStart, closeIndex);
+    for (const entry of body.matchAll(entries)) {
+      const color = rgbaToHex(entry.slice(2).filter((value) => value !== undefined));
+      if (!color) continue;
+      const valueOffset = entry[0].lastIndexOf(entry[1]);
+      const start = bodyStart + entry.index + valueOffset;
+      results.push({ start, end: start + entry[1].length, color, syntax: 'LUA', text: entry[1], priority });
+    }
+  }
+}
+
 function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function colorFromValue(value, syntaxes) { return parseColors(value, { syntaxes, variables: false, luaTables: false, fiveM: false })[0]?.color || null; }
 
@@ -237,7 +269,10 @@ function parseColors(text, options = {}) {
   if (enabled.has('OKLCH')) pushMatches(results, text, /oklch\([^\n)]*\)/gi, 'OKLCH', (m) => parseOklabFunction(m[0], true), p('OKLCH'));
   if (enabled.has('LUA')) {
     pushMatches(results, text, /\b0x([\da-f]{6}|[\da-f]{8})\b/gi, 'LUA', (m) => `#${m[1]}`, p('LUA'));
-    if (options.luaTables !== false) pushMatches(results, text, /\b(?:colou?r|rgba?|markerColou?r|blipColou?r)\s*=\s*\{\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d{1,3}))?\s*\}/gi, 'LUA', (m) => rgbaToHex(m.slice(1).filter((v) => v !== undefined)), p('LUA'));
+    if (options.luaTables !== false) {
+      pushMatches(results, text, /\b(?:colou?r|rgba?|markerColou?r|blipColou?r)\s*=\s*\{\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d{1,3}))?\s*\}/gi, 'LUA', (m) => rgbaToHex(m.slice(1).filter((v) => v !== undefined)), p('LUA'));
+      pushLuaPaletteTables(results, text, p('LUA'));
+    }
   }
   if (enabled.has('FIVEM') && options.fiveM !== false) {
     pushMatches(results, text, /\^(\d)/g, 'FIVEM', (m) => FIVEM_CARET[m[1]], p('FIVEM'));

@@ -18,6 +18,26 @@ test('does not decorate arbitrary Lua coordinate tables', () => {
   assert.equal(parseColors('coords = { 255, 64, 0 }').length, 0);
 });
 
+test('colorizes keyed RGB tuples inside Lua color palette tables', () => {
+  const source = `CategoryColors = {
+    Staff = { 125, 0, 125 },
+    Secours = { 155, 0, 0 },
+    ["Forces de l'ordre"] = { 0, 0, 155 },
+    ["Météo"] = { 56, 189, 248 },
+    Heure = { 251, 146, 60 },
+    Debug = { 250, 204, 21 },
+  }`;
+  const colors = parseColors(source, { syntaxes: ['LUA'] });
+  assert.deepEqual(colors.map((item) => [item.text, item.color]), [
+    ['{ 125, 0, 125 }', '#7d007d'],
+    ['{ 155, 0, 0 }', '#9b0000'],
+    ['{ 0, 0, 155 }', '#00009b'],
+    ['{ 56, 189, 248 }', '#38bdf8'],
+    ['{ 251, 146, 60 }', '#fb923c'],
+    ['{ 250, 204, 21 }', '#facc15']
+  ]);
+});
+
 test('parses FiveM caret and tilde formatting codes', () => {
   const colors = parseColors('print("^1Error^7: ~y~warning")');
   assert.deepEqual(colors.map((item) => item.color), ['#f44336', '#ffffff', '#ffeb3b']);
@@ -26,6 +46,7 @@ test('parses FiveM caret and tilde formatting codes', () => {
 test('honours syntax and Lua feature switches', () => {
   assert.deepEqual(parseColors('^1 #fff', { syntaxes: ['HEXA'] }).map((item) => item.text), ['#fff']);
   assert.equal(parseColors('color = {1, 2, 3}', { luaTables: false }).length, 0);
+  assert.equal(parseColors('CategoryColors = { Staff = { 125, 0, 125 } }', { syntaxes: ['LUA'], luaTables: false }).length, 0);
 });
 
 test('converts HSL and validates RGBA channels', () => {
