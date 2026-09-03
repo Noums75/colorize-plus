@@ -42,3 +42,29 @@ test('colorizes references when original variable search is enabled', () => {
   const variables = parseColors(source, { variables: true }).filter((color) => color.syntax === 'VARIABLE');
   assert.deepEqual(variables.map((color) => [color.text, color.color]), [['var(--brand)', '#123456'], ['$accent', '#ff0000']]);
 });
+
+test('restores legacy formats and modern CSS syntax', () => {
+  assert.equal(parseColors('0x0f08', { syntaxes: ['HEXA'] })[0].color, '#00ff0088');
+  assert.equal(parseColors('#80ff0000', { syntaxes: ['ARGB'] })[0].color, '#ff000080');
+  assert.equal(parseColors('rgb(100% 0% 0% / 50%)', { syntaxes: ['RGB'] })[0].color, '#ff000080');
+  assert.equal(parseColors('hsl(0deg 100% 50% / 25%)', { syntaxes: ['HSL'] })[0].color, '#ff000040');
+  assert.equal(parseColors('rebeccapurple', { syntaxes: ['BROWSERS_COLORS'] })[0].color, '#663399');
+});
+
+test('restores OKLAB and OKLCH support', () => {
+  const lab = parseColors('oklab(62.8% 0.2249 0.1258)', { syntaxes: ['OKLAB'] })[0];
+  const lch = parseColors('oklch(62.8% 0.2577 29.23)', { syntaxes: ['OKLCH'] })[0];
+  assert.match(lab.color, /^#[0-9a-f]{6}$/);
+  assert.match(lch.color, /^#[0-9a-f]{6}$/);
+});
+
+test('restores Stylus variables and external workspace variables', () => {
+  const stylus = parseColors('brand = #123456\na\n  color brand', { variables: true, variableFamilies: ['STYLUS'] })
+    .filter((item) => item.syntax === 'VARIABLE');
+  assert.deepEqual(stylus.map((item) => [item.text, item.color]), [['brand', '#123456']]);
+
+  const external = new Map([['CSS:--workspace-brand', { family: 'CSS', name: '--workspace-brand', color: '#abcdef' }]]);
+  const workspace = parseColors('color: var(--workspace-brand)', { variables: true, variableFamilies: ['CSS'], variableDefinitions: external })
+    .filter((item) => item.syntax === 'VARIABLE');
+  assert.equal(workspace[0].color, '#abcdef');
+});
