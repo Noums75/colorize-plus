@@ -58,6 +58,19 @@ test('supports the original BROWSERS_COLORS syntax name', () => {
   assert.equal(parseColors('red', { syntaxes: ['BROWSERS_COLORS'] })[0].color, '#ff0000');
 });
 
+test('does not treat Lua length expressions or enum-like strings as colors', () => {
+  const lengthExpression = parseColors('for index = 1, #definition.Sections do');
+  assert.equal(lengthExpression.length, 0);
+
+  const weatherOption = parseColors("{ Label = 'Neige', Value = 'SNOW', Icon = 'fa-solid fa-snowflake' }");
+  assert.equal(weatherOption.length, 0);
+});
+
+test('still accepts quoted browser color names on color-like assignments', () => {
+  const colors = parseColors("TextColor = 'SNOW'");
+  assert.deepEqual(colors.map((item) => [item.text, item.color]), [['SNOW', '#fffafa']]);
+});
+
 test('colorizes references when original variable search is enabled', () => {
   const source = ':root { --brand: #123456; } a { color: var(--brand) }\n$accent: red; b { color: $accent }';
   const variables = parseColors(source, { variables: true }).filter((color) => color.syntax === 'VARIABLE');
