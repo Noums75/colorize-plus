@@ -179,6 +179,37 @@ function pushMatches(results, text, regex, syntax, colorFromMatch, priority) {
   }
 }
 
+function isInsideQuotedString(text, index) {
+  const lineStart = text.lastIndexOf('\n', index - 1) + 1;
+  let single = false;
+  let double = false;
+  let escaped = false;
+  for (let cursor = lineStart; cursor < index; cursor += 1) {
+    const char = text[cursor];
+    if (escaped) { escaped = false; continue; }
+    if (char === '\\') { escaped = true; continue; }
+    if (char === "'" && !double) single = !single;
+    else if (char === '"' && !single) double = !double;
+  }
+  return single || double;
+}
+
+function hasColorLikeQuotedAssignment(text, index) {
+  const lineStart = text.lastIndexOf('\n', index - 1) + 1;
+  const before = text.slice(lineStart, index);
+  const assignment = before.match(/(?:\[\s*(?:"[^"]*"|'[^']*')\s*\]|[A-Za-z_][\w]*)\s*=\s*(?:"[^"]*|'[^']*)$/);
+  if (!assignment) return false;
+  const key = assignment[0].slice(0, assignment[0].indexOf('='));
+  return /colou?r|background|border|fill|stroke/i.test(key);
+}
+
+function browserNameColor(text, match) {
+  const color = NAMES[match[0].toLowerCase()];
+  if (!color) return null;
+  if (!isInsideQuotedString(text, match.index)) return color;
+  return hasColorLikeQuotedAssignment(text, match.index) ? color : null;
+}
+
 function findClosingBrace(text, openIndex) {
   let depth = 0;
   for (let index = openIndex; index < text.length; index += 1) {
@@ -256,11 +287,11 @@ function parseColors(text, options = {}) {
   const enabled = new Set(requested); const results = []; const priority = new Map(requested.map((name, index) => [name, index]));
   const p = (name) => priority.has(name) ? priority.get(name) : 999;
   if (enabled.has('HEXA')) {
-    pushMatches(results, text, /#[\da-f]{3,4}(?![\da-f])|#[\da-f]{6}(?:[\da-f]{2})?(?![\da-f])/gi, 'HEXA', (m) => m[0], p('HEXA'));
+    pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'HEXA', (m) => m[0], p('HEXA'));
     if (!enabled.has('LUA')) pushMatches(results, text, /\b0x([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})\b/gi, 'HEXA', (m) => normalizeHex('0x', m[1]), p('HEXA'));
   }
   if (enabled.has('ARGB')) {
-    pushMatches(results, text, /#[\da-f]{3,4}(?![\da-f])|#[\da-f]{6}(?:[\da-f]{2})?(?![\da-f])/gi, 'ARGB', (m) => normalizeHex('#', m[0].slice(1), true), p('ARGB'));
+    pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'ARGB', (m) => normalizeHex('#', m[0].slice(1), true), p('ARGB'));
     if (!enabled.has('LUA')) pushMatches(results, text, /\b0x([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})\b/gi, 'ARGB', (m) => normalizeHex('0x', m[1], true), p('ARGB'));
   }
   if (enabled.has('RGB')) pushMatches(results, text, /rgba?\([^\n)]*\)/gi, 'RGB', (m) => parseRgbFunction(m[0]), p('RGB'));
@@ -280,7 +311,7 @@ function parseColors(text, options = {}) {
   }
   if (enabled.has('NAMES') || enabled.has('BROWSERS_COLORS')) {
     const names = Object.keys(NAMES).join('|'); const namePriority = Math.min(p('NAMES'), p('BROWSERS_COLORS'));
-    pushMatches(results, text, new RegExp(`\\b(?:${names})\\b`, 'gi'), 'NAMES', (m) => NAMES[m[0].toLowerCase()], namePriority);
+    pushMatches(results, text, new RegExp(`\\b(?:${names})\\b`, 'gi'), 'NAMES', (m) => browserNameColor(text, m), namePriority);
   }
   if (options.variables) parseVariables(text, results, { ...options, syntaxes: requested });
   return results.sort((a, b) => a.start - b.start || a.priority - b.priority || b.end - a.end)
