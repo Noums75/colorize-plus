@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const { parseColors, extractVariableDefinitions } = require('./color-parser');
+const { registerUpdates } = require('./updates');
 
 const decorations = new Map();
 const timers = new Map();
@@ -216,6 +217,7 @@ function update(editor = vscode.window.activeTextEditor) {
   const variableFamilies = config.get('colorized_variables', ['CSS', 'SASS', 'LESS']);
   const grouped = new Map();
   for (const match of parseColors(editor.document.getText(), {
+    languageId: path.extname(editor.document.fileName).toLowerCase() === '.lua' ? 'lua' : editor.document.languageId,
     syntaxes: config.get('colorized_colors'),
     luaTables: config.get('lua.enableTables'),
     fiveM: config.get('lua.enableFiveM'),
@@ -255,6 +257,7 @@ function scheduleWorkspaceRefresh() {
 }
 
 async function activate(context) {
+  registerUpdates(context);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = 'colorize.reload';
   context.subscriptions.push(statusBar);

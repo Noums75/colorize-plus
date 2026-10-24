@@ -1,2 +1,4 @@
 node_modules/
 *.vsix
+SHA256SUMS
+install-colorize.cjs

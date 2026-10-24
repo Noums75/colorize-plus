@@ -18,6 +18,55 @@ test('does not decorate arbitrary Lua coordinate tables', () => {
   assert.equal(parseColors('coords = { 255, 64, 0 }').length, 0);
 });
 
+test('colorizes the named RGBA marker table from the reported Lua example', () => {
+  const source = `local MARKER = {
+    type = 4,
+    scale = vector3(1.5, 1.5, 0.6),
+    color = { r = 0, g = 170, b = 255, a = 150 }
+  }`;
+  const colors = parseColors(source, { languageId: 'lua' });
+  assert.deepEqual(colors.map(({ text, color }) => [text, color]), [
+    ['{ r = 0, g = 170, b = 255, a = 150 }', '#00aaff96']
+  ]);
+  assert.equal(source.slice(colors[0].start, colors[0].end), colors[0].text);
+});
+
+test('handles reordered, multiline and bracket-keyed Lua channels and palette entries', () => {
+  const source = `color = { b = 255; r = 0; g = 170; }
+    rgba = { ["g"] = 170, ['r'] = 0, b = 255, a = .5, }
+    CategoryColors = { Staff = { b = 255,\n g = 170,\n r = 0 } }`;
+  assert.deepEqual(parseColors(source, { syntaxes: ['LUA'] }).map((item) => item.color), [
+    '#00aaff', '#00aaff80', '#00aaff'
+  ]);
+  assert.equal(parseColors(source, { syntaxes: ['LUA'], luaTables: false }).length, 0);
+});
+
+test('rejects incomplete, duplicate, out of range and unrelated Lua tables', () => {
+  for (const body of ['r = 0, g = 170', 'r = 0, r = 1, g = 170, b = 255',
+    'r = 256, g = 0, b = 0', 'r = 0, g = 0, b = 0, a = 256',
+    'r = value, g = 0, b = 0', 'r = 0, g = 0, b = 0, extra = 1']) {
+    assert.equal(parseColors(`color = { ${body} }`, { syntaxes: ['LUA'] }).length, 0, body);
+  }
+  assert.equal(parseColors('coords = { x = 0, y = 170, z = 255 }').length, 0);
+});
+
+test('Lua hash length operators are never hex colors, including hex-only identifiers', () => {
+  const source = 'for index = 1, #definition.Sections do\nprint(#def, #dead, #abcdef, #deadbeef, #face.items, # face)';
+  for (const syntaxes of [['HEXA'], ['ARGB'], ['HEXA', 'ARGB']]) {
+    assert.deepEqual(parseColors(source, { languageId: 'lua', syntaxes }), []);
+  }
+});
+
+test('Lua hex strings and comments retain colors, while CSS hashes remain supported', () => {
+  const source = `color = '#def'; color = "#dead"; color = [=[#abcdef]=]
+    -- #123456
+    --[=[ #fedcba ]=]
+    print(#dead)`;
+  assert.deepEqual(parseColors(source, { languageId: 'lua', syntaxes: ['HEXA'] }).map((item) => item.text),
+    ['#def', '#dead', '#abcdef', '#123456', '#fedcba']);
+  assert.equal(parseColors('a { color: #def; }', { languageId: 'css' })[0].color, '#def');
+});
+
 test('colorizes keyed RGB tuples inside Lua color palette tables', () => {
   const source = `CategoryColors = {
     Staff = { 125, 0, 125 },

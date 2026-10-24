@@ -1,5 +1,8 @@
 .git/**
 .github/**
+.vscode/**
 .gitignore
 test/**
 *.vsix
+SHA256SUMS
+install-colorize.cjs

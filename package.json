@@ -2,7 +2,7 @@
   "name": "vscode-colorize",
   "displayName": "Colorize",
   "description": "Visualize CSS colors with legacy Colorize behavior plus first-class Lua and FiveM support.",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "publisher": "colorize-fivem",
   "license": "MIT",
   "repository": {
@@ -17,21 +17,29 @@
   "keywords": ["color", "colour", "lua", "fivem", "css", "scss", "less", "stylus"],
   "activationEvents": ["onStartupFinished"],
   "main": "./src/extension.js",
+  "extensionKind": ["ui"],
   "scripts": {
     "build": "vsce package",
     "test": "node --test test/*.test.js",
-    "check": "node --check src/extension.js && node --check src/color-parser.js"
+    "check": "node --check src/extension.js && node --check src/color-parser.js && node --check src/release-updater.js && node --check src/updates.js"
   },
   "devDependencies": {
     "@vscode/vsce": "3.9.2"
   },
   "contributes": {
     "commands": [
-      { "command": "colorize.reload", "title": "Colorize: Reload decorations" }
+      { "command": "colorize.reload", "title": "Colorize: Reload decorations" },
+      { "command": "colorize.checkForUpdates", "title": "Colorize Plus: Check for updates" }
     ],
     "configuration": {
       "title": "Colorize",
       "properties": {
+        "colorize.updates.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Check stable GitHub releases daily and install verified updates automatically. Reload VS Code when prompted to activate them. Disable to update manually with Colorize Plus: Check for updates."
+        },
         "colorize.languages": {
           "type": "array",
           "default": ["css", "sass", "scss", "less", "postcss", "sss", "stylus", "xml", "svg", "lua"],
@@ -98,7 +106,7 @@
         "colorize.lua.enableTables": {
           "type": "boolean",
           "default": true,
-          "description": "Colorize Lua tables assigned to a color-like key, for example color = { 255, 0, 0, 200 }."
+          "description": "Colorize Lua RGB/RGBA tables, including color = { r = 0, g = 170, b = 255, a = 150 }."
         },
         "colorize.lua.enableFiveM": {
           "type": "boolean",

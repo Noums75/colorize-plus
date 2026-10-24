@@ -222,9 +222,65 @@ function findClosingBrace(text, openIndex) {
   return -1;
 }
 
+// Retain offsets while distinguishing Lua code from strings and comments. A
+// leading # is the length operator in code, even for identifiers such as dead.
+function luaLiteralRanges(text) {
+  const ranges = [];
+  const tokens = /--\[(=*)\[|--[^\r\n]*|\[(=*)\[|["']/g;
+  let match;
+  while ((match = tokens.exec(text))) {
+    const start = match.index;
+    if (match[0].startsWith('--') && match[1] === undefined) {
+      ranges.push([start, tokens.lastIndex]);
+      continue;
+    }
+    if (match[1] !== undefined || match[2] !== undefined) {
+      const end = text.indexOf(`]${match[1] ?? match[2]}]`, tokens.lastIndex);
+      tokens.lastIndex = end < 0 ? text.length : end + (match[1] ?? match[2]).length + 2;
+    } else {
+      const quote = match[0];
+      let end = tokens.lastIndex;
+      while (end < text.length) {
+        if (text[end] === '\\') end += 2;
+        else if (text[end++] === quote) break;
+      }
+      tokens.lastIndex = Math.min(end, text.length);
+    }
+    ranges.push([start, tokens.lastIndex]);
+  }
+  return ranges;
+}
+
+function luaTableColor(body) {
+  const trimmed = body.trim().replace(/[,;]\s*$/, '');
+  if (/^\d{1,3}(?:\s*[,;]\s*\d{1,3}){2,3}$/.test(trimmed)) {
+    return rgbaToHex(trimmed.split(/[,;]/));
+  }
+  const channels = new Map();
+  for (const field of trimmed.split(/[,;]/)) {
+    const match = field.trim().match(/^(?:([rgba])|\[\s*["']([rgba])["']\s*\])\s*=\s*(\d+(?:\.\d+)?|\.\d+)$/i);
+    if (!match) return null;
+    const key = (match[1] || match[2]).toLowerCase();
+    if (channels.has(key)) return null;
+    channels.set(key, match[3]);
+  }
+  if (!['r', 'g', 'b'].every((key) => channels.has(key))) return null;
+  return rgbaToHex(['r', 'g', 'b', 'a'].filter((key) => channels.has(key)).map((key) => channels.get(key)));
+}
+
+function pushLuaColorTables(results, text, priority) {
+  const assignments = /\b(?:colou?r|rgba?|markerColou?r|blipColou?r)\s*=\s*(\{([^{}]*)\})/gi;
+  for (const match of text.matchAll(assignments)) {
+    const color = luaTableColor(match[2]);
+    if (!color) continue;
+    const start = match.index + match[0].indexOf('{');
+    results.push({ start, end: start + match[1].length, color, syntax: 'LUA', text: match[1], priority });
+  }
+}
+
 function pushLuaPaletteTables(results, text, priority) {
   const palettes = /\b[A-Za-z_][\w]*(?:colou?r|palette)[\w]*\s*=\s*\{/gi;
-  const entries = /(?:\[\s*(?:"[^"]*"|'[^']*')\s*\]|[A-Za-z_][\w]*)\s*=\s*(\{\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d{1,3}))?\s*\})/g;
+  const entries = /(?:\[\s*(?:"[^"]*"|'[^']*')\s*\]|[A-Za-z_][\w]*)\s*=\s*(\{([^{}]*)\})/g;
   for (const palette of text.matchAll(palettes)) {
     const openIndex = palette.index + palette[0].lastIndexOf('{');
     const closeIndex = findClosingBrace(text, openIndex);
@@ -232,7 +288,7 @@ function pushLuaPaletteTables(results, text, priority) {
     const bodyStart = openIndex + 1;
     const body = text.slice(bodyStart, closeIndex);
     for (const entry of body.matchAll(entries)) {
-      const color = rgbaToHex(entry.slice(2).filter((value) => value !== undefined));
+      const color = luaTableColor(entry[2]);
       if (!color) continue;
       const valueOffset = entry[0].lastIndexOf(entry[1]);
       const start = bodyStart + entry.index + valueOffset;
@@ -286,12 +342,14 @@ function parseColors(text, options = {}) {
   const requested = options.syntaxes || ['BROWSERS_COLORS', 'HEXA', 'RGB', 'HSL', 'OKLAB', 'OKLCH', 'LUA', 'FIVEM'];
   const enabled = new Set(requested); const results = []; const priority = new Map(requested.map((name, index) => [name, index]));
   const p = (name) => priority.has(name) ? priority.get(name) : 999;
+  const luaRanges = options.languageId === 'lua' ? luaLiteralRanges(text) : null;
+  const hashIsColor = (match) => !luaRanges || luaRanges.some(([start, end]) => match.index >= start && match.index < end);
   if (enabled.has('HEXA')) {
-    pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'HEXA', (m) => m[0], p('HEXA'));
+    pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'HEXA', (m) => hashIsColor(m) ? m[0] : null, p('HEXA'));
     if (!enabled.has('LUA')) pushMatches(results, text, /\b0x([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})\b/gi, 'HEXA', (m) => normalizeHex('0x', m[1]), p('HEXA'));
   }
   if (enabled.has('ARGB')) {
-    pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'ARGB', (m) => normalizeHex('#', m[0].slice(1), true), p('ARGB'));
+    pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'ARGB', (m) => hashIsColor(m) ? normalizeHex('#', m[0].slice(1), true) : null, p('ARGB'));
     if (!enabled.has('LUA')) pushMatches(results, text, /\b0x([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})\b/gi, 'ARGB', (m) => normalizeHex('0x', m[1], true), p('ARGB'));
   }
   if (enabled.has('RGB')) pushMatches(results, text, /rgba?\([^\n)]*\)/gi, 'RGB', (m) => parseRgbFunction(m[0]), p('RGB'));
@@ -301,7 +359,7 @@ function parseColors(text, options = {}) {
   if (enabled.has('LUA')) {
     pushMatches(results, text, /\b0x([\da-f]{6}|[\da-f]{8})\b/gi, 'LUA', (m) => `#${m[1]}`, p('LUA'));
     if (options.luaTables !== false) {
-      pushMatches(results, text, /\b(?:colou?r|rgba?|markerColou?r|blipColou?r)\s*=\s*\{\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d{1,3}))?\s*\}/gi, 'LUA', (m) => rgbaToHex(m.slice(1).filter((v) => v !== undefined)), p('LUA'));
+      pushLuaColorTables(results, text, p('LUA'));
       pushLuaPaletteTables(results, text, p('LUA'));
     }
   }

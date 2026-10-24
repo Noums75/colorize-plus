@@ -9,6 +9,22 @@ permissions:
   contents: read
 
 jobs:
+  compatibility:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Tests and runtime use only Node built-ins; VSCE is needed only to package.
+      - run: npm test
+      - run: npm run check
+
   build:
     name: Test and build VSIX
     runs-on: ubuntu-latest
@@ -36,17 +52,25 @@ jobs:
       - name: Build the extension
         run: npm run build
 
+      - name: Prepare release downloads
+        run: |
+          cp src/release-updater.js install-colorize.cjs
+          sha256sum *.vsix install-colorize.cjs > SHA256SUMS
+
       - name: Upload the VSIX
         uses: actions/upload-artifact@v4
         with:
           name: vscode-colorize-vsix
-          path: "*.vsix"
+          path: |
+            *.vsix
+            SHA256SUMS
+            install-colorize.cjs
           if-no-files-found: error
 
   release:
-    name: Release major version
-    needs: build
-    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    name: Release stable version
+    needs: [build, compatibility]
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -59,10 +83,9 @@ jobs:
         shell: bash
         run: |
           version="$(node --print "require('./package.json').version")"
-          if [[ ! "$version" =~ ^[1-9][0-9]*\.0\.0$ ]]; then
-            echo "Version $version is not a major release (X.0.0); skipping the release."
-            echo "create=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Version $version is not a stable semantic version."
+            exit 1
           fi
 
           tag="v$version"
@@ -88,7 +111,7 @@ jobs:
         if: steps.version.outputs.create == 'true'
         run: >-
           gh release create "${{ steps.version.outputs.tag }}"
-          dist/*.vsix
+          dist/*.vsix dist/SHA256SUMS dist/install-colorize.cjs
           --target "$GITHUB_SHA"
           --title "${{ steps.version.outputs.tag }}"
           --generate-notes
