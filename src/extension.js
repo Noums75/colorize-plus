@@ -120,7 +120,7 @@ function isExcluded(fileName, config) {
 }
 
 function isSupported(document, config) {
-  if (document.uri.scheme !== 'file' || isExcluded(document.fileName, config)) return false;
+  if (!['file', 'vscode-remote'].includes(document.uri.scheme) || isExcluded(document.fileName, config)) return false;
   const languages = config.get('languages', []);
   const extensions = config.get('files_extensions', []);
   const include = config.get('include', []);

@@ -22,11 +22,12 @@ function loadWithVscode(filename, vscode, overrides = {}) {
   return module.exports;
 }
 
-test('extension activation decorates the reported Lua table and ignores length expressions', async () => {
+for (const scheme of ['file', 'vscode-remote']) {
+test(`extension decorates Lua tables and ignores length expressions in ${scheme} documents`, async () => {
   const source = 'local MARKER = { color = { r = 0, g = 170, b = 255, a = 150 } }\nfor index = 1, #definition.Sections do\nprint(#dead)';
   const applied = new Map();
   const editor = {
-    document: { languageId: 'lua', fileName: '/project/client.lua', uri: { scheme: 'file' },
+    document: { languageId: 'plaintext', fileName: '/project/client.lua', uri: { scheme },
       getText: () => source, positionAt: (offset) => ({ line: 0, character: offset }) },
     selections: [], setDecorations: (decoration, ranges) => applied.set(decoration, ranges)
   };
@@ -59,4 +60,5 @@ test('extension activation decorates the reported Lua table and ignores length e
   assert.equal(source.slice(ranges[0].start.character, ranges[0].end.character), '{ r = 0, g = 170, b = 255, a = 150 }');
   extension.deactivate();
 });
+}
 

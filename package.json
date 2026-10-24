@@ -2,7 +2,7 @@
   "name": "vscode-colorize",
   "displayName": "Colorize",
   "description": "Visualize CSS colors with legacy Colorize behavior plus first-class Lua and FiveM support.",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "publisher": "colorize-fivem",
   "license": "MIT",
   "repository": {

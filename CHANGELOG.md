@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.1
+
+- Keep color decorations available in remote SSH, WSL and container documents when the updater runs in the local VS Code UI extension host.
+- Verify Lua detection for `.lua` files even without a Lua language extension installed.
+
 ## 2.1.0
 
 - Display named Lua RGB/RGBA tables such as `{ r = 0, g = 170, b = 255, a = 150 }`, including palette entries, reordered channels and multiline values.
