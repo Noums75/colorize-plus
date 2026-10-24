@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { createHash } = require('node:crypto');
 
-function setup(t, { enabled = true, corrupt = false, offline = false, installFails = false } = {}) {
+function setup(t, { enabled = true, corrupt = false, offline = false, installFails = false, privateRepository = false, signedIn = true } = {}) {
   const calls = [];
   const timers = [];
   const commands = new Map();
@@ -14,19 +14,25 @@ function setup(t, { enabled = true, corrupt = false, offline = false, installFai
   const bytes = Buffer.from('verified VSIX');
   const digest = createHash('sha256').update(bytes).digest('hex');
   const filename = 'vscode-colorize-2.1.0.vsix';
-  t.mock.method(globalThis, 'fetch', async (url) => {
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
     calls.push(['fetch', url]);
     if (offline) throw new Error('offline');
+    if (privateRepository && !options.headers.Authorization) return new Response('', { status: 404 });
+    if (privateRepository) assert.equal(options.headers.Authorization, 'Bearer test-session');
     if (url.endsWith('/releases/latest')) return new Response(JSON.stringify({
-      tag_name: 'v2.1.0', assets: [{ name: filename }, { name: 'SHA256SUMS' }]
+      tag_name: 'v2.1.0', assets: [{ name: filename, id: 101 }, { name: 'SHA256SUMS', id: 102 }]
     }));
-    if (url.endsWith('/SHA256SUMS')) return new Response(`${digest}  ${filename}\n`);
+    if (url.endsWith('/SHA256SUMS') || url.endsWith('/102')) return new Response(`${digest}  ${filename}\n`);
     return new Response(corrupt ? 'tampered' : bytes);
   });
   const context = { subscriptions: [], extension: { packageJSON: { version: '2.0.0' } },
     globalStorageUri: '/storage', globalState: { get: (key, fallback) => state.get(key) ?? fallback,
       update: async (key, value) => { state.set(key, value); } } };
   const vscode = {
+    authentication: { getSession: async (provider, scopes, options) => {
+      calls.push(['auth', provider, scopes, options]);
+      return signedIn ? { accessToken: 'test-session' } : undefined;
+    } },
     workspace: { getConfiguration: () => ({ get: () => enabled }), fs: {
       createDirectory: async (uri) => { calls.push(['mkdir', uri]); },
       writeFile: async (uri, data) => { calls.push(['write', uri, data]); },
@@ -105,4 +111,24 @@ test('disposed update handlers do not start network checks', async (t) => {
   await timers[0]();
   await manual();
   assert.equal(calls.length, 0);
+});
+
+test('private automatic updates reuse a GitHub session without prompting', async (t) => {
+  const { calls, timers } = setup(t, { privateRepository: true });
+  await timers[0]();
+  const auth = calls.find(([name]) => name === 'auth');
+  assert.equal(auth[1], 'github');
+  assert.equal(auth[3].silent, true);
+  assert.equal(calls.some(([name]) => name === 'command'), true);
+});
+
+test('manual private updates request sign-in while automatic checks never trigger it', async (t) => {
+  const automatic = setup(t, { privateRepository: true, signedIn: false });
+  await automatic.timers[0]();
+  assert.equal(automatic.calls.some(([name]) => name === 'command' || name === 'error'), false);
+  assert.equal(automatic.calls.find(([name]) => name === 'auth')[3].silent, true);
+  const manual = setup(t, { privateRepository: true });
+  await manual.manual();
+  assert.equal(manual.calls.find(([name]) => name === 'auth')[3].createIfNone, true);
+  assert.equal(manual.calls.some(([name]) => name === 'command'), true);
 });

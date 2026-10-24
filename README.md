@@ -27,7 +27,7 @@ In Lua files, `#` is treated as the length operator outside strings and comments
 
 ## Install and update in VS Code
 
-Download the `.vsix` from the [latest GitHub release](https://github.com/Noums75/colorize-plus/releases/latest). In VS Code, run **Extensions: Install from VSIX…** and select the file. Reload VS Code after installation. Install version 2.1.0 or newer once to enable the built-in updater; older versions cannot acquire this feature automatically.
+Download the `.vsix` from the [latest GitHub release](https://github.com/Noums75/colorize-plus/releases/latest). In VS Code, run **Extensions: Install from VSIX…** and select the file. Reload VS Code after installation. Install version 2.1.2 or newer once to enable the updater with private repository support; older versions cannot acquire this feature automatically.
 
 After installation, Colorize Plus checks stable GitHub releases on startup (after 30 seconds) and every six hours while VS Code is open, with at most one successful check per day. When a newer version exists, it downloads the VSIX, verifies its SHA-256 checksum and installs it. A notification lets you reload VS Code when convenient; the extension never reloads your editor automatically. No Marketplace account or GitHub token is needed for public releases.
 
@@ -36,6 +36,8 @@ Run **Colorize Plus: Check for updates** for an immediate check and installation
 ```json
 { "colorize.updates.autoUpdate": false }
 ```
+
+**Private repositories:** run **Colorize Plus: Check for updates** once and sign in to GitHub when VS Code asks. Use an account that can read `Noums75/colorize-plus`; VS Code requests the `repo` scope required for private releases. Subsequent automatic checks reuse that session silently. Tokens stay with VS Code's authentication provider and are sent only to `api.github.com`, never saved in Colorize settings. Without an authorized session, automatic checks leave the installed extension unchanged and do not prompt. You also need repository access in your browser for the initial download.
 
 Offline or failed automatic checks leave your installed version working. Manual checks report failures. Access to `api.github.com`, `github.com` and GitHub's release download hosts is required; a restrictive corporate proxy may require using the manual VSIX download instead. Restart VS Code after changing this setting to apply it immediately.
 
@@ -48,6 +50,8 @@ node install-colorize.cjs
 ```
 
 The standalone installer downloads the latest stable VSIX, verifies `SHA256SUMS`, installs it using `code --install-extension --force`, and removes its temporary files. Run the same command later for a manual update. It needs no npm packages or repository clone. It targets VS Code Stable in your current command-line environment; for another editor or profile, install the VSIX there manually.
+
+For a private repository, also install [GitHub CLI](https://cli.github.com/) and run `gh auth login` with an account that can read the repository before running the installer. The installer delegates authenticated API requests to `gh` without extracting its token.
 
 ## Settings
 

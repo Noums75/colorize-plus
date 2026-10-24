@@ -22,8 +22,8 @@ test('standalone installer verifies the download, invokes code and removes tempo
     const bytes = Buffer.from('fixture VSIX');
     const name = 'vscode-colorize-2.1.0.vsix';
     globalThis.fetch = async (url) => {
-      if (url.endsWith('/releases/latest')) return new Response(JSON.stringify({ tag_name: 'v2.1.0', assets: [{ name }, { name: 'SHA256SUMS' }] }));
-      if (url.endsWith('/SHA256SUMS')) return new Response(createHash('sha256').update(bytes).digest('hex') + '  ' + name);
+      if (url.endsWith('/releases/latest')) return new Response(JSON.stringify({ tag_name: 'v2.1.0', assets: [{ name, id: 101 }, { name: 'SHA256SUMS', id: 102 }] }));
+      if (url.endsWith('/102')) return new Response(createHash('sha256').update(bytes).digest('hex') + '  ' + name);
       return new Response(bytes);
     };
   `);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.2
+
+- Download release assets through GitHub's API so private repositories work.
+- Reuse VS Code's GitHub authentication for private release updates; the manual update command can request sign-in, while automatic checks never prompt.
+- Let the standalone installer use an already authenticated GitHub CLI for private repositories, without extracting or storing credentials.
+
 ## 2.1.1
 
 - Keep color decorations available in remote SSH, WSL and container documents when the updater runs in the local VS Code UI extension host.

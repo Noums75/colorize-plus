@@ -8,13 +8,13 @@ const { isNewerVersion, findUpdate, downloadUpdate } = require('../src/release-u
 const bytes = Buffer.from('test VSIX archive bytes');
 const digest = createHash('sha256').update(bytes).digest('hex');
 const filename = 'vscode-colorize-2.1.0.vsix';
-const release = { tag_name: 'v2.1.0', draft: false, prerelease: false, assets: [{ name: filename }, { name: 'SHA256SUMS' }] };
+const release = { tag_name: 'v2.1.0', draft: false, prerelease: false, assets: [{ name: filename, id: 101 }, { name: 'SHA256SUMS', id: 102 }] };
 
 function releaseFetch(overrides = {}) {
   return async (url) => {
     if (url.endsWith('/releases/latest')) return new Response(JSON.stringify(overrides.release || release));
-    if (url.endsWith('/SHA256SUMS')) return new Response(overrides.checksum ?? `${digest}  ${filename}\n`);
-    if (url.endsWith(`/${filename}`)) return new Response(overrides.bytes ?? bytes);
+    if (url.endsWith('/102')) return new Response(overrides.checksum ?? `${digest}  ${filename}\n`);
+    if (url.endsWith('/101')) return new Response(overrides.bytes ?? bytes);
     throw new Error(`Unexpected URL: ${url}`);
   };
 }
@@ -31,7 +31,7 @@ test('discovers a stable release and verifies the VSIX bytes before returning th
   const fetchImpl = releaseFetch();
   const update = await findUpdate('2.0.0', fetchImpl);
   assert.equal(update.version, '2.1.0');
-  assert.equal(update.downloadUrl, `https://github.com/Noums75/colorize-plus/releases/download/v2.1.0/${filename}`);
+  assert.equal(update.downloadUrl, 'https://api.github.com/repos/Noums75/colorize-plus/releases/assets/101');
   assert.deepEqual(await downloadUpdate(update, fetchImpl), bytes);
   assert.equal(await findUpdate('2.1.0', fetchImpl), null);
 });
@@ -40,6 +40,26 @@ test('ignores drafts, prereleases and invalid tags', async () => {
   for (const changed of [{ draft: true }, { prerelease: true }, { tag_name: 'v2.2.0-beta.1' }, { tag_name: 'unexpected' }]) {
     assert.equal(await findUpdate('2.0.0', releaseFetch({ release: { ...release, ...changed } })), null);
   }
+});
+
+test('private releases use authenticated API asset downloads without trusting supplied URLs', async () => {
+  const requests = [];
+  const fetchImpl = async (url, options) => {
+    requests.push([url, options.headers]);
+    assert.equal(options.headers.Authorization, 'Bearer test-session');
+    assert.ok(url.startsWith('https://api.github.com/repos/Noums75/colorize-plus/releases/'));
+    if (url.endsWith('/latest')) return new Response(JSON.stringify({ ...release, assets: [
+      { name: filename, id: 101, browser_download_url: 'https://untrusted.example/other' },
+      { name: 'SHA256SUMS', id: 102 }
+    ] }));
+    assert.equal(options.headers.Accept, 'application/octet-stream');
+    if (url.endsWith('/102')) return new Response(`${digest}  ${filename}\n`);
+    if (url.endsWith('/101')) return new Response(bytes);
+    throw new Error('Unexpected asset request');
+  };
+  const update = await findUpdate('2.0.0', fetchImpl, 'test-session');
+  assert.deepEqual(await downloadUpdate(update, fetchImpl, 'test-session'), bytes);
+  assert.equal(requests.length, 3);
 });
 
 test('refuses incomplete or ambiguous release assets', async () => {

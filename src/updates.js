@@ -17,7 +17,18 @@ function registerUpdates(context) {
       || Date.now() - context.globalState.get('updates.lastCheck', 0) < DAY)) return;
     busy = true;
     try {
-      const update = await findUpdate(installedVersion);
+      let token;
+      let update;
+      try {
+        update = await findUpdate(installedVersion);
+      } catch (error) {
+        if (![401, 404].includes(error.status)) throw error;
+        const session = await vscode.authentication.getSession('github', ['repo'], manual
+          ? { createIfNone: true } : { silent: true });
+        if (!session) throw new Error('GitHub access is required. Run Colorize Plus: Check for updates to sign in with an account that can read the repository.');
+        token = session.accessToken;
+        update = await findUpdate(installedVersion, undefined, token);
+      }
       await context.globalState.update('updates.lastCheck', Date.now());
       if (disposed) return;
       if (!update) {
@@ -25,7 +36,7 @@ function registerUpdates(context) {
           ? 'Colorize Plus is updated. Reload VS Code to activate it.' : 'Colorize Plus is up to date.');
         return;
       }
-      const bytes = await downloadUpdate(update);
+      const bytes = await downloadUpdate(update, undefined, token);
       if (disposed) return;
       await vscode.workspace.fs.createDirectory(context.globalStorageUri);
       const uri = vscode.Uri.joinPath(context.globalStorageUri, update.filename);

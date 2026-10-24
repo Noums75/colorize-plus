@@ -21,12 +21,18 @@ function isNewerVersion(candidate, current) {
   return false;
 }
 
-async function download(url, limit, fetchImpl) {
+async function download(url, limit, fetchImpl, token, binary = false) {
+  const headers = { 'User-Agent': 'colorize-plus', Accept: binary ? 'application/octet-stream' : 'application/vnd.github+json' };
+  if (token && new URL(url).origin === 'https://api.github.com') headers.Authorization = `Bearer ${token}`;
   const response = await fetchImpl(url, {
-    headers: { 'User-Agent': 'colorize-plus', Accept: 'application/vnd.github+json' },
+    headers,
     signal: AbortSignal.timeout(60_000)
   });
-  if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}.`);
+  if (!response.ok) {
+    const error = new Error(`GitHub returned HTTP ${response.status}.`);
+    error.status = response.status;
+    throw error;
+  }
   if (Number(response.headers.get('content-length')) > limit) {
     await response.body?.cancel();
     throw new Error('Release download exceeds the size limit.');
@@ -41,8 +47,8 @@ async function download(url, limit, fetchImpl) {
   return Buffer.concat(chunks);
 }
 
-async function findUpdate(currentVersion, fetchImpl = globalThis.fetch) {
-  const release = JSON.parse((await download(API_URL, 1024 * 1024, fetchImpl)).toString('utf8'));
+async function findUpdate(currentVersion, fetchImpl = globalThis.fetch, token) {
+  const release = JSON.parse((await download(API_URL, 1024 * 1024, fetchImpl, token)).toString('utf8'));
   if (release.draft || release.prerelease || typeof release.tag_name !== 'string') return null;
   const version = release.tag_name.replace(/^v/, '');
   if (!isNewerVersion(version, currentVersion)) return null;
@@ -51,17 +57,22 @@ async function findUpdate(currentVersion, fetchImpl = globalThis.fetch) {
   if (names.filter((name) => name === filename).length !== 1 || names.filter((name) => name === 'SHA256SUMS').length !== 1) {
     throw new Error('The release must contain one VSIX and its SHA256SUMS file.');
   }
-  // Construct trusted repository URLs rather than following URLs from metadata.
-  const base = `https://github.com/${REPOSITORY}/releases/download/${release.tag_name}`;
-  return { version, filename, downloadUrl: `${base}/${filename}`, checksumUrl: `${base}/SHA256SUMS` };
+  // API assets support private repositories; browser download URLs do not accept
+  // API tokens. Build trusted URLs and let fetch strip auth on cross-origin redirects.
+  const assetUrl = (name) => {
+    const id = release.assets.find((asset) => asset.name === name).id;
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Invalid GitHub release asset ID.');
+    return `https://api.github.com/repos/${REPOSITORY}/releases/assets/${id}`;
+  };
+  return { version, filename, downloadUrl: assetUrl(filename), checksumUrl: assetUrl('SHA256SUMS') };
 }
 
-async function downloadUpdate(update, fetchImpl = globalThis.fetch) {
-  const checksumText = (await download(update.checksumUrl, 64 * 1024, fetchImpl)).toString('utf8');
+async function downloadUpdate(update, fetchImpl = globalThis.fetch, token) {
+  const checksumText = (await download(update.checksumUrl, 64 * 1024, fetchImpl, token, true)).toString('utf8');
   const checksums = checksumText.split(/\r?\n/).map((line) => line.match(/^([a-f0-9]{64}) [ *](.+)$/i))
     .filter((match) => match && match[2] === update.filename);
   if (checksums.length !== 1) throw new Error('The release checksum is missing or ambiguous.');
-  const vsix = await download(update.downloadUrl, MAX_VSIX_BYTES, fetchImpl);
+  const vsix = await download(update.downloadUrl, MAX_VSIX_BYTES, fetchImpl, token, true);
   const actual = createHash('sha256').update(vsix).digest('hex');
   if (actual !== checksums[0][1].toLowerCase()) throw new Error('VSIX SHA-256 verification failed; installation cancelled.');
   return vsix;
@@ -77,10 +88,30 @@ async function installFromCommandLine() {
   const path = require('node:path');
   const { spawnSync } = require('node:child_process');
   if (typeof globalThis.fetch !== 'function') throw new Error('Please install Node.js 22 or newer.');
-  const update = await findUpdate('0.0.0');
+  let fetchImpl = globalThis.fetch;
+  let update;
+  try {
+    update = await findUpdate('0.0.0', fetchImpl);
+  } catch (error) {
+    if (![401, 404].includes(error.status)) throw error;
+    // GitHub CLI supplies its own authentication. Never extract its token.
+    fetchImpl = async (url, options) => {
+      const target = new URL(url);
+      if (target.origin !== 'https://api.github.com' || !target.pathname.startsWith(`/repos/${REPOSITORY}/releases/`)) {
+        throw new Error('Unexpected GitHub API destination.');
+      }
+      const result = spawnSync('gh', ['api', target.pathname, '-H', `Accept: ${options.headers.Accept}`],
+        { maxBuffer: MAX_VSIX_BYTES + 1, timeout: 60_000 });
+      if (result.error || result.status !== 0) {
+        throw new Error('This private repository requires GitHub access. Install GitHub CLI, run gh auth login with an account that can read the repository, then retry.');
+      }
+      return new Response(result.stdout);
+    };
+    update = await findUpdate('0.0.0', fetchImpl);
+  }
   if (!update) throw new Error('No stable release is available.');
   console.log(`Downloading Colorize Plus ${update.version}...`);
-  const bytes = await downloadUpdate(update);
+  const bytes = await downloadUpdate(update, fetchImpl);
   const directory = await mkdtemp(path.join(tmpdir(), 'colorize-plus-'));
   try {
     const filename = path.join(directory, update.filename);
