@@ -2,7 +2,9 @@
   <img src="assets/icon.png" alt="Colorize Plus" width="256">
 </p>
 
-# Colorize for Lua & FiveM
+# Colorize Plus
+
+**Author:** Noums
 
 Colorize Plus keeps the original **Colorize** settings and behavior while adding first-class Lua and FiveM support. Existing Colorize workspaces can keep their familiar configuration, and the Lua/FiveM additions remain enabled independently.
 
@@ -82,7 +84,7 @@ For a private repository, also install [GitHub CLI](https://cli.github.com/) and
 
 Workspace variable discovery is intentionally disabled by default in Colorize Plus to avoid an unnecessary startup scan. Turn on `colorize.enable_search_variables` when you need references to declarations from other files.
 
-Run **Colorize: Reload decorations** from the command palette (or click the Colorize status-bar item) after changing files externally. Configuration and document edits refresh automatically.
+Run **Colorize Plus: Reload decorations** from the command palette (or click the Colorize Plus status-bar item) after changing files externally. Configuration and document edits refresh automatically.
 
 ## Development
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.6
+
+- Set the project display name to Colorize Plus and the author to Noums.
+- Use the project name consistently in the README, VS Code settings, commands and status bar.
+
 ## 2.1.5
 
 - Include the latest transparent Colorize Plus icon uploaded to the repository.

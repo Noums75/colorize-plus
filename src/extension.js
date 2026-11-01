@@ -175,7 +175,7 @@ async function refreshWorkspaceVariables() {
     try {
       for (const uri of await vscode.workspace.findFiles(pattern, exclude, 5000)) uris.set(uri.toString(), uri);
     } catch (error) {
-      console.warn(`Colorize: unable to scan pattern ${pattern}`, error);
+      console.warn(`Colorize Plus: unable to scan pattern ${pattern}`, error);
     }
   }
   const next = new Map();
@@ -186,7 +186,7 @@ async function refreshWorkspaceVariables() {
       const definitions = extractVariableDefinitions(document.getText(), { variableFamilies: families, syntaxes });
       for (const [key, value] of definitions) next.set(key, value);
     } catch (error) {
-      console.warn(`Colorize: unable to inspect ${uri.fsPath}`, error);
+      console.warn(`Colorize Plus: unable to inspect ${uri.fsPath}`, error);
     }
   }
   workspaceVariables = next;
@@ -194,8 +194,8 @@ async function refreshWorkspaceVariables() {
 
 function updateStatusBar(editor, supported) {
   if (!statusBar || editor !== vscode.window.activeTextEditor) return;
-  statusBar.text = supported ? '$(check) Colorize' : '$(circle-slash) Colorize';
-  statusBar.tooltip = supported ? 'Colorize is activated for this file' : 'Colorize is not activated for this file';
+  statusBar.text = supported ? '$(check) Colorize Plus' : '$(circle-slash) Colorize Plus';
+  statusBar.tooltip = supported ? 'Colorize Plus is activated for this file' : 'Colorize Plus is not activated for this file';
   statusBar.show();
 }
 

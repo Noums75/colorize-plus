@@ -1,8 +1,9 @@
 {
   "name": "vscode-colorize",
-  "displayName": "Colorize",
+  "displayName": "Colorize Plus",
   "description": "Visualize CSS colors with legacy Colorize behavior plus first-class Lua and FiveM support.",
-  "version": "2.1.5",
+  "version": "2.1.6",
+  "author": "Noums",
   "publisher": "colorize-fivem",
   "license": "MIT",
   "repository": {
@@ -29,11 +30,11 @@
   },
   "contributes": {
     "commands": [
-      { "command": "colorize.reload", "title": "Colorize: Reload decorations" },
+      { "command": "colorize.reload", "title": "Colorize Plus: Reload decorations" },
       { "command": "colorize.checkForUpdates", "title": "Colorize Plus: Check for updates" }
     ],
     "configuration": {
-      "title": "Colorize",
+      "title": "Colorize Plus",
       "properties": {
         "colorize.updates.autoUpdate": {
           "type": "boolean",
