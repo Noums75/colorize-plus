@@ -107,6 +107,30 @@ test('supports the original BROWSERS_COLORS syntax name', () => {
   assert.equal(parseColors('red', { syntaxes: ['BROWSERS_COLORS'] })[0].color, '#ff0000');
 });
 
+test('does not highlight red inside the reported French Lua comment', () => {
+  const source = '-- État initial (redémarrage de la ressource, connexion)\nupdateRadar(cache.vehicle, cache.seat)';
+  assert.deepEqual(parseColors(source, { languageId: 'lua' }), []);
+});
+
+test('color names must be complete words with Unicode-aware boundaries', () => {
+  const words = ['redémarrage', 'REDÉMARRAGE', 'préred', 'éblue', 'blue色', '色red',
+    'red\u0301emarrage', 'red\u200démarrage', 'red²', 'red_thing', 'red2'];
+  for (const syntax of ['BROWSERS_COLORS', 'NAMES']) {
+    for (const word of words) {
+      assert.deepEqual(parseColors(word, { syntaxes: [syntax] }), [], `${syntax}: ${word}`);
+    }
+  }
+});
+
+test('still highlights standalone names next to punctuation and after Unicode text', () => {
+  const source = '/* état 🎨 */ a { color: red; border-color: BLUE; }';
+  const colors = parseColors(source, { syntaxes: ['BROWSERS_COLORS'] });
+  assert.deepEqual(colors.map(({ text, color }) => [text, color]), [['red', '#ff0000'], ['BLUE', '#0000ff']]);
+  for (const match of colors) assert.equal(source.slice(match.start, match.end), match.text);
+  assert.deepEqual(parseColors("color = 'red'; colour = 'blue'", { languageId: 'lua' }).map(({ color }) => color),
+    ['#ff0000', '#0000ff']);
+});
+
 test('does not treat Lua length expressions or enum-like strings as colors', () => {
   const lengthExpression = parseColors('for index = 1, #definition.Sections do');
   assert.equal(lengthExpression.length, 0);

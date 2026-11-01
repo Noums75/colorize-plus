@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.3
+
+- Match browser color names only as complete Unicode words, preventing false highlights such as `red` inside the French word `redémarrage` in Lua comments.
+- Preserve standalone color names and cover accented letters, combining marks and non-Latin characters with regression tests.
+
 ## 2.1.2
 
 - Download release assets through GitHub's API so private repositories work.

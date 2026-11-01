@@ -369,7 +369,9 @@ function parseColors(text, options = {}) {
   }
   if (enabled.has('NAMES') || enabled.has('BROWSERS_COLORS')) {
     const names = Object.keys(NAMES).join('|'); const namePriority = Math.min(p('NAMES'), p('BROWSERS_COLORS'));
-    pushMatches(results, text, new RegExp(`\\b(?:${names})\\b`, 'gi'), 'NAMES', (m) => browserNameColor(text, m), namePriority);
+    // JavaScript's \b treats accented letters as separators (e.g. redémarrage).
+    const wordChar = '[\\p{L}\\p{M}\\p{N}\\p{Pc}\\u200c\\u200d]';
+    pushMatches(results, text, new RegExp(`(?<!${wordChar})(?:${names})(?!${wordChar})`, 'giu'), 'NAMES', (m) => browserNameColor(text, m), namePriority);
   }
   if (options.variables) parseVariables(text, results, { ...options, syntaxes: requested });
   return results.sort((a, b) => a.start - b.start || a.priority - b.priority || b.end - a.end)
