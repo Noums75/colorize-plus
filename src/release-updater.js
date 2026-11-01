@@ -21,34 +21,57 @@ function isNewerVersion(candidate, current) {
   return false;
 }
 
-async function download(url, limit, fetchImpl, token, binary = false) {
-  const headers = { 'User-Agent': 'colorize-plus', Accept: binary ? 'application/octet-stream' : 'application/vnd.github+json' };
-  if (token && new URL(url).origin === 'https://api.github.com') headers.Authorization = `Bearer ${token}`;
-  const response = await fetchImpl(url, {
-    headers,
-    signal: AbortSignal.timeout(60_000)
-  });
-  if (!response.ok) {
-    const error = new Error(`GitHub returned HTTP ${response.status}.`);
-    error.status = response.status;
-    throw error;
+function retryDelay(headers) {
+  const retry = headers.get('retry-after');
+  const reset = Number(headers.get('x-ratelimit-reset'));
+  const delays = [];
+  if (retry) {
+    const seconds = Number(retry);
+    delays.push(Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retry) - Date.now());
   }
-  if (Number(response.headers.get('content-length')) > limit) {
-    await response.body?.cancel();
-    throw new Error('Release download exceeds the size limit.');
-  }
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of response.body) {
-    size += chunk.length;
-    if (size > limit) throw new Error('Release download exceeds the size limit.');
-    chunks.push(Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks);
+  if (headers.get('x-ratelimit-remaining') === '0' && Number.isFinite(reset)) delays.push(reset * 1000 - Date.now());
+  return Math.min(2 ** 31 - 1, Math.max(0, ...delays.filter(Number.isFinite)));
 }
 
-async function findUpdate(currentVersion, fetchImpl = globalThis.fetch, token) {
-  const release = JSON.parse((await download(API_URL, 1024 * 1024, fetchImpl, token)).toString('utf8'));
+async function download(url, limit, fetchImpl, token, binary = false, signal) {
+  const headers = { 'User-Agent': 'colorize-plus', Accept: binary ? 'application/octet-stream' : 'application/vnd.github+json' };
+  if (token && new URL(url).origin === 'https://api.github.com') headers.Authorization = `Bearer ${token}`;
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal.reason);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+  const timeout = setTimeout(() => controller.abort(new Error('GitHub request timed out after 60 seconds.')), 60_000);
+  try {
+    controller.signal.throwIfAborted();
+    const response = await fetchImpl(url, { headers, signal: controller.signal });
+    if (!response.ok) {
+      const error = new Error(`GitHub returned HTTP ${response.status}.`);
+      error.status = response.status;
+      error.retryAfterMs = retryDelay(response.headers);
+      await response.body?.cancel();
+      throw error;
+    }
+    if (Number(response.headers.get('content-length')) > limit) {
+      await response.body?.cancel();
+      throw new Error('Release download exceeds the size limit.');
+    }
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of response.body) {
+      controller.signal.throwIfAborted();
+      size += chunk.length;
+      if (size > limit) throw new Error('Release download exceeds the size limit.');
+      chunks.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
+  }
+}
+
+async function findUpdate(currentVersion, fetchImpl = globalThis.fetch, token, { signal } = {}) {
+  const release = JSON.parse((await download(API_URL, 1024 * 1024, fetchImpl, token, false, signal)).toString('utf8'));
   if (release.draft || release.prerelease || typeof release.tag_name !== 'string') return null;
   const version = release.tag_name.replace(/^v/, '');
   if (!isNewerVersion(version, currentVersion)) return null;
@@ -67,12 +90,12 @@ async function findUpdate(currentVersion, fetchImpl = globalThis.fetch, token) {
   return { version, filename, downloadUrl: assetUrl(filename), checksumUrl: assetUrl('SHA256SUMS') };
 }
 
-async function downloadUpdate(update, fetchImpl = globalThis.fetch, token) {
-  const checksumText = (await download(update.checksumUrl, 64 * 1024, fetchImpl, token, true)).toString('utf8');
+async function downloadUpdate(update, fetchImpl = globalThis.fetch, token, { signal } = {}) {
+  const checksumText = (await download(update.checksumUrl, 64 * 1024, fetchImpl, token, true, signal)).toString('utf8');
   const checksums = checksumText.split(/\r?\n/).map((line) => line.match(/^([a-f0-9]{64}) [ *](.+)$/i))
     .filter((match) => match && match[2] === update.filename);
   if (checksums.length !== 1) throw new Error('The release checksum is missing or ambiguous.');
-  const vsix = await download(update.downloadUrl, MAX_VSIX_BYTES, fetchImpl, token, true);
+  const vsix = await download(update.downloadUrl, MAX_VSIX_BYTES, fetchImpl, token, true, signal);
   const actual = createHash('sha256').update(vsix).digest('hex');
   if (actual !== checksums[0][1].toLowerCase()) throw new Error('VSIX SHA-256 verification failed; installation cancelled.');
   return vsix;

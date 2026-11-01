@@ -2,7 +2,7 @@
   "name": "vscode-colorize",
   "displayName": "Colorize Plus",
   "description": "Visualize CSS colors with legacy Colorize behavior plus first-class Lua and FiveM support.",
-  "version": "2.1.6",
+  "version": "2.2.0",
   "author": "Noums",
   "publisher": "colorize-fivem",
   "license": "MIT",
@@ -31,7 +31,8 @@
   "contributes": {
     "commands": [
       { "command": "colorize.reload", "title": "Colorize Plus: Reload decorations" },
-      { "command": "colorize.checkForUpdates", "title": "Colorize Plus: Check for updates" }
+      { "command": "colorize.checkForUpdates", "title": "Colorize Plus: Check for updates" },
+      { "command": "colorize.showUpdateLog", "title": "Colorize Plus: Show update log" }
     ],
     "configuration": {
       "title": "Colorize Plus",
@@ -40,7 +41,20 @@
           "type": "boolean",
           "default": true,
           "scope": "application",
-          "description": "Check stable GitHub releases daily and install verified updates automatically. Reload VS Code when prompted to activate them. Disable to update manually with Colorize Plus: Check for updates."
+          "description": "Automatically download and install verified stable GitHub updates. When disabled, checks still run and offer an Install update action. Reload VS Code when convenient to activate an installed update."
+        },
+        "colorize.updates.checkOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Check for updates three seconds after startup, on every launch, even if another window checked recently."
+        },
+        "colorize.updates.checkIntervalHours": {
+          "type": "number",
+          "enum": [0, 1, 3, 6, 12, 24],
+          "default": 1,
+          "scope": "application",
+          "description": "Hours between background update checks while VS Code remains open. Set 0 to disable periodic checks. Startup checks are controlled separately. Changes apply immediately."
         },
         "colorize.languages": {
           "type": "array",

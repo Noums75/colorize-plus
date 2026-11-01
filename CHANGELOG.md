@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.0
+
+- Check for updates on every VS Code launch after three seconds; remove the daily throttle that could skip startup checks.
+- Add configurable hourly background checks and separate controls for startup checks and automatic installation.
+- Show manual progress, an update log, and Install update / Sign in actions when needed.
+- Retry transient errors with increasing delays and respect GitHub rate limits across restarts.
+- Reuse GitHub sessions, retry after account changes, allow manual session renewal, and cancel requests on deactivation.
+- Isolate temporary downloads between windows and queue manual checks instead of silently ignoring them during a background check.
+
 ## 2.1.6
 
 - Set the project display name to Colorize Plus and the author to Noums.

@@ -33,19 +33,29 @@ In Lua files, `#` is treated as the length operator outside strings and comments
 
 ## Install and update in VS Code
 
-Download the `.vsix` from the [latest GitHub release](https://github.com/Noums75/colorize-plus/releases/latest). In VS Code, run **Extensions: Install from VSIX…** and select the file. Reload VS Code after installation. Install version 2.1.2 or newer once to enable the updater with private repository support; older versions cannot acquire this feature automatically.
+Download the `.vsix` from the [latest GitHub release](https://github.com/Noums75/colorize-plus/releases/latest). In VS Code, run **Extensions: Install from VSIX…** and select the file. Reload VS Code after installation. Versions before 2.1.5 may require this manual installation on recent VS Code versions to acquire the corrected updater.
 
-After installation, Colorize Plus checks stable GitHub releases on startup (after 30 seconds) and every six hours while VS Code is open, with at most one successful check per day. When a newer version exists, it downloads the VSIX, verifies its SHA-256 checksum and installs it. A notification lets you reload VS Code when convenient; the extension never reloads your editor automatically. No Marketplace account or GitHub token is needed for public releases.
+Colorize Plus checks stable GitHub releases **on every launch**, about three seconds after VS Code finishes starting. A check earlier the same day never suppresses the startup check. It then checks **every hour** by default while the window remains open. When a newer version exists, it downloads the VSIX, verifies its SHA-256 checksum and installs it. A notification lets you reload VS Code when convenient; the extension never reloads your editor automatically. Public releases need no Marketplace account or GitHub token.
 
-Run **Colorize Plus: Check for updates** for an immediate check and installation. To turn off automatic updates, set this **User** setting:
+Run **Colorize Plus: Check for updates** for an immediate check and installation with visible progress. Run **Colorize Plus: Show update log** to see checks, installed versions, errors and scheduled retries. The log does not include credentials.
+
+These **User** settings control checking and installation independently and apply immediately:
 
 ```json
-{ "colorize.updates.autoUpdate": false }
+{
+  "colorize.updates.checkOnStartup": true,
+  "colorize.updates.checkIntervalHours": 1,
+  "colorize.updates.autoUpdate": true
+}
 ```
 
-**Private repositories:** run **Colorize Plus: Check for updates** once and sign in to GitHub when VS Code asks. Use an account that can read `Noums75/colorize-plus`; VS Code requests the `repo` scope required for private releases. Subsequent automatic checks reuse that session silently. Tokens stay with VS Code's authentication provider and are sent only to `api.github.com`, never saved in Colorize settings. Without an authorized session, automatic checks leave the installed extension unchanged and do not prompt. You also need repository access in your browser for the initial download.
+- Set `colorize.updates.autoUpdate` to `false` to keep checks enabled and receive an **Install update** action instead of automatic installation. Each available version is announced once. The manual check command can still install it.
+- Change `colorize.updates.checkIntervalHours` to 3, 6, 12 or 24 for less frequent checks, or 0 to turn off periodic checks.
+- Set `colorize.updates.checkOnStartup` to `false` and the interval to 0 to disable all automatic checks. Manual checks remain available.
 
-Offline or failed automatic checks leave your installed version working. Manual checks report failures. Access to `api.github.com`, `github.com` and GitHub's release download hosts is required; a restrictive corporate proxy may require using the manual VSIX download instead. Restart VS Code after changing this setting to apply it immediately.
+**Private repositories:** use an account that can read `Noums75/colorize-plus`; VS Code requests the `repo` scope required for private releases. Existing GitHub sessions are reused silently. If access is missing, an occasional **Sign in** notification lets you authorize it; background checks never open interactive sign-in themselves. You can also run **Colorize Plus: Check for updates** to sign in or renew an expired session. Tokens stay with VS Code's authentication provider and are sent only to `api.github.com`, never saved in Colorize settings or logs. You also need repository access in your browser for the initial download.
+
+Offline checks and failed downloads or installations leave your installed version working. Automatic failures retry after 1, 5 and 15 minutes, then hourly until recovery. GitHub rate-limit delays take precedence, including after a restart; a manual command cannot bypass a server-imposed wait. Manual checks report failures and offer the log. Requests are cancelled when the extension stops, and concurrent windows use separate temporary download directories. Access to `api.github.com`, `github.com` and GitHub's release download hosts is required; a restrictive corporate proxy may require using the manual VSIX download instead.
 
 ### Quick terminal installer (Windows, macOS, Linux)
 

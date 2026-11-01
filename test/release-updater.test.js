@@ -83,3 +83,34 @@ test('reports network, malformed metadata and size errors without treating them 
   await assert.rejects(findUpdate('2.0.0', async () => new Response('x'.repeat(1048577))), /size limit/);
 });
 
+test('GitHub throttling reports Retry-After seconds, HTTP dates and rate-limit reset times', async () => {
+  for (const headers of [
+    { 'retry-after': '120' },
+    { 'retry-after': new Date(Date.now() + 120_000).toUTCString() },
+    { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Math.ceil(Date.now() / 1000) + 120) }
+  ]) {
+    await assert.rejects(findUpdate('2.0.0', async () => new Response('', { status: 403, headers })), (error) => {
+      assert.equal(error.status, 403);
+      assert.ok(error.retryAfterMs > 118_000 && error.retryAfterMs < 122_000);
+      return true;
+    });
+  }
+});
+
+test('an already cancelled update never makes a request', async () => {
+  const controller = new AbortController();
+  controller.abort(new Error('extension stopped'));
+  let requests = 0;
+  await assert.rejects(findUpdate('2.0.0', async () => { requests++; }, undefined, { signal: controller.signal }), /extension stopped/);
+  assert.equal(requests, 0);
+});
+
+test('deactivation aborts an in-flight request', async () => {
+  const controller = new AbortController();
+  const pending = findUpdate('2.0.0', async (url, { signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    queueMicrotask(() => controller.abort(new Error('extension stopped')));
+  }), undefined, { signal: controller.signal });
+  await assert.rejects(pending, /extension stopped/);
+});
+
