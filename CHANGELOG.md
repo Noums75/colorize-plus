@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.4
+
+- Add the Colorize Plus icon to the VS Code extension and display it at the top of the README.
+
 ## 2.1.3
 
 - Match browser color names only as complete Unicode words, preventing false highlights such as `red` inside the French word `redémarrage` in Lua comments.

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icon.png" alt="Colorize Plus" width="256">
+</p>
+
 # Colorize for Lua & FiveM
 
 Colorize Plus keeps the original **Colorize** settings and behavior while adding first-class Lua and FiveM support. Existing Colorize workspaces can keep their familiar configuration, and the Lua/FiveM additions remain enabled independently.
