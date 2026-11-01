@@ -10,6 +10,9 @@ function registerUpdates(context) {
   let disposed = false;
   let pendingReload = false;
   let installedVersion = context.extension.packageJSON.version;
+  const notify = (promise) => {
+    void promise.catch((error) => console.warn('Colorize Plus notification:', error?.message || String(error)));
+  };
 
   async function check(manual = false) {
     if (busy || disposed) return;
@@ -29,11 +32,11 @@ function registerUpdates(context) {
         token = session.accessToken;
         update = await findUpdate(installedVersion, undefined, token);
       }
-      await context.globalState.update('updates.lastCheck', Date.now());
       if (disposed) return;
       if (!update) {
-        if (manual) await vscode.window.showInformationMessage(pendingReload
-          ? 'Colorize Plus is updated. Reload VS Code to activate it.' : 'Colorize Plus is up to date.');
+        await context.globalState.update('updates.lastCheck', Date.now());
+        if (manual) notify(vscode.window.showInformationMessage(pendingReload
+          ? 'Colorize Plus is updated. Reload VS Code to activate it.' : 'Colorize Plus is up to date.'));
         return;
       }
       const bytes = await downloadUpdate(update, undefined, token);
@@ -42,21 +45,30 @@ function registerUpdates(context) {
       const uri = vscode.Uri.joinPath(context.globalStorageUri, update.filename);
       await vscode.workspace.fs.writeFile(uri, bytes);
       try {
-        await vscode.commands.executeCommand('workbench.extensions.installExtension', uri);
+        // Recent desktop VS Code exposes storage as vscode-userdata, whereas
+        // its VSIX installer accepts filesystem URIs for local extensions.
+        const installUri = uri.scheme === 'vscode-userdata' ? vscode.Uri.file(uri.fsPath) : uri;
+        await vscode.commands.executeCommand('workbench.extensions.installExtension', installUri);
       } finally {
         await vscode.workspace.fs.delete(uri).catch(() => {});
       }
       installedVersion = update.version;
       pendingReload = true;
+      await context.globalState.update('updates.lastCheck', Date.now());
       if (disposed) return;
-      const action = await vscode.window.showInformationMessage(
-        `Colorize Plus ${update.version} is installed. Reload VS Code to activate the update.`, 'Reload now');
-      if (action === 'Reload now') await vscode.commands.executeCommand('workbench.action.reloadWindow');
+      // A notification can remain open indefinitely. Release the check lock
+      // without waiting for the user to choose when to reload the editor.
+      notify(vscode.window.showInformationMessage(
+        `Colorize Plus ${update.version} is installed. Reload VS Code to activate the update.`, 'Reload now')
+        .then((action) => {
+          if (!disposed && action === 'Reload now') return vscode.commands.executeCommand('workbench.action.reloadWindow');
+        }));
     } catch (error) {
       // Offline work must never interrupt color decorations. The command exposes
       // errors on demand, while automatic checks stay silent and retry later.
-      console.warn('Colorize Plus update:', error.message);
-      if (manual && !disposed) await vscode.window.showErrorMessage(`Colorize Plus update failed: ${error.message}`);
+      const message = error?.message || String(error);
+      console.warn('Colorize Plus update:', message);
+      if (manual && !disposed) notify(vscode.window.showErrorMessage(`Colorize Plus update failed: ${message}`));
     } finally {
       busy = false;
     }

@@ -6,11 +6,13 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { createHash } = require('node:crypto');
 
-function setup(t, { enabled = true, corrupt = false, offline = false, installFails = false, privateRepository = false, signedIn = true } = {}) {
+function setup(t, { enabled = true, corrupt = false, offline = false, installFails = false, privateRepository = false, signedIn = true, holdReloadPrompt = false, currentVersion = '2.0.0', userDataStorage = false } = {}) {
   const calls = [];
   const timers = [];
   const commands = new Map();
   const state = new Map();
+  let now = Date.now();
+  let resolveReloadPrompt;
   const bytes = Buffer.from('verified VSIX');
   const digest = createHash('sha256').update(bytes).digest('hex');
   const filename = 'vscode-colorize-2.1.0.vsix';
@@ -25,7 +27,7 @@ function setup(t, { enabled = true, corrupt = false, offline = false, installFai
     if (url.endsWith('/SHA256SUMS') || url.endsWith('/102')) return new Response(`${digest}  ${filename}\n`);
     return new Response(corrupt ? 'tampered' : bytes);
   });
-  const context = { subscriptions: [], extension: { packageJSON: { version: '2.0.0' } },
+  const context = { subscriptions: [], extension: { packageJSON: { version: currentVersion } },
     globalStorageUri: '/storage', globalState: { get: (key, fallback) => state.get(key) ?? fallback,
       update: async (key, value) => { state.set(key, value); } } };
   const vscode = {
@@ -38,21 +40,30 @@ function setup(t, { enabled = true, corrupt = false, offline = false, installFai
       writeFile: async (uri, data) => { calls.push(['write', uri, data]); },
       delete: async (uri) => { calls.push(['delete', uri]); }
     } },
-    Uri: { joinPath: (...parts) => parts.join('/') },
-    window: { showInformationMessage: async (message) => { calls.push(['info', message]); },
+    Uri: { joinPath: (...parts) => userDataStorage ? { scheme: 'vscode-userdata', fsPath: parts.join('/') } : parts.join('/'),
+      file: (fsPath) => ({ scheme: 'file', fsPath }) },
+    window: { showInformationMessage: async (message) => {
+      calls.push(['info', message]);
+      if (holdReloadPrompt) return new Promise((resolve) => { resolveReloadPrompt = resolve; });
+    },
       showErrorMessage: async (message) => { calls.push(['error', message]); } },
     commands: { registerCommand: (name, fn) => { commands.set(name, fn); return { dispose() {} }; },
-      executeCommand: async (...args) => { calls.push(['command', ...args]); if (installFails) throw new Error('install failed'); } }
+      executeCommand: async (...args) => {
+        calls.push(['command', ...args]);
+        if (typeof installFails === 'string') throw installFails;
+        if (installFails) throw new Error('install failed');
+      } }
   };
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(require.resolve('../src/updates'), 'utf8'), {
     module, require: (name) => name === 'vscode' ? vscode : require('../src/release-updater'),
-    console: { warn() {} }, Date,
+    console: { warn() {} }, Date: class extends Date { static now() { return now; } },
     setTimeout: (fn) => { timers.push(fn); return fn; }, setInterval: (fn) => { timers.push(fn); return fn; },
     clearTimeout() {}, clearInterval() {}
   });
   module.exports.registerUpdates(context);
-  return { calls, timers, context, manual: commands.get('colorize.checkForUpdates') };
+  return { calls, timers, context, manual: commands.get('colorize.checkForUpdates'),
+    advance: (milliseconds) => { now += milliseconds; }, dismissReload: () => resolveReloadPrompt?.() };
 }
 
 test('manual update installs verified bytes through VS Code and cleans the downloaded file', async (t) => {
@@ -82,6 +93,15 @@ test('automatic checks obey the daily throttle and user disable setting', async 
   assert.ok(disabled.calls.some(([name]) => name === 'command'));
 });
 
+test('desktop user-data storage is converted to the file URI required by the VSIX installer', async (t) => {
+  const { calls, manual } = setup(t, { userDataStorage: true });
+  await manual();
+  assert.deepEqual(calls.find(([name]) => name === 'command'), [
+    'command', 'workbench.extensions.installExtension', { scheme: 'file', fsPath: '/storage/vscode-colorize-2.1.0.vsix' }
+  ]);
+  assert.equal(calls.find(([name]) => name === 'delete')[1].scheme, 'vscode-userdata');
+});
+
 test('failed verification prevents all file writes and installation', async (t) => {
   const { calls, manual } = setup(t, { corrupt: true });
   await manual();
@@ -103,6 +123,56 @@ test('installation failures clean up and never claim success', async (t) => {
   assert.ok(calls.some(([name]) => name === 'delete'));
   assert.equal(calls.some(([name]) => name === 'info'), false);
   assert.match(calls.find(([name]) => name === 'error')[1], /install failed/);
+});
+
+test('string errors returned by VS Code are shown instead of undefined', async (t) => {
+  const { calls, manual } = setup(t, { installFails: 'No Servers' });
+  await manual();
+  assert.match(calls.find(([name]) => name === 'error')[1], /No Servers/);
+});
+
+test('failed automatic installations retry on the next scheduled check', async (t) => {
+  const { calls, timers, advance } = setup(t, { installFails: true });
+  await timers[0]();
+  assert.equal(calls.filter(([name]) => name === 'command').length, 1);
+  advance(6 * 60 * 60 * 1000);
+  await timers[1]();
+  assert.equal(calls.filter(([name]) => name === 'command').length, 2);
+});
+
+test('an unanswered reload notification does not block future automatic checks', async (t) => {
+  const { calls, timers, advance, dismissReload } = setup(t, { holdReloadPrompt: true });
+  const firstCheck = timers[0]();
+  try {
+    for (let attempts = 0; attempts < 100 && !calls.some(([name]) => name === 'info'); attempts += 1) {
+      await new Promise(setImmediate);
+    }
+    assert.ok(calls.some(([name]) => name === 'info'));
+    const before = calls.filter(([name]) => name === 'fetch').length;
+    advance(25 * 60 * 60 * 1000);
+    await timers[1]();
+    assert.equal(calls.filter(([name]) => name === 'fetch').length, before + 1);
+  } finally {
+    dismissReload();
+    await firstCheck;
+  }
+});
+
+test('the manual up-to-date notification does not block later automatic checks', async (t) => {
+  const { calls, manual, timers, advance, dismissReload } = setup(t, { holdReloadPrompt: true, currentVersion: '2.1.0' });
+  const firstCheck = manual();
+  try {
+    for (let attempts = 0; attempts < 100 && !calls.some(([name]) => name === 'info'); attempts += 1) {
+      await new Promise(setImmediate);
+    }
+    assert.ok(calls.some(([name, message]) => name === 'info' && message.includes('up to date')));
+    advance(25 * 60 * 60 * 1000);
+    await timers[1]();
+    assert.equal(calls.filter(([name]) => name === 'fetch').length, 2);
+  } finally {
+    dismissReload();
+    await firstCheck;
+  }
 });
 
 test('disposed update handlers do not start network checks', async (t) => {

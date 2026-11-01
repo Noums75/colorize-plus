@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.5
+
+- Include the latest transparent Colorize Plus icon uploaded to the repository.
+- Convert desktop user-data storage addresses to filesystem URIs accepted by the VSIX installer in recent VS Code versions.
+- Keep automatic update checks running while the reload notification remains open.
+- Retry failed downloads or installations on the next scheduled check instead of marking them as a successful daily check.
+- Display installation errors correctly even when VS Code returns a string.
+
 ## 2.1.4
 
 - Add the Colorize Plus icon to the VS Code extension and display it at the top of the README.
