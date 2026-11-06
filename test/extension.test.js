@@ -23,8 +23,8 @@ function loadWithVscode(filename, vscode, overrides = {}) {
 }
 
 for (const scheme of ['file', 'vscode-remote']) {
-test(`extension decorates Lua tables and ignores length expressions in ${scheme} documents`, async () => {
-  const source = 'local MARKER = { color = { r = 0, g = 170, b = 255, a = 150 } }\nfor index = 1, #definition.Sections do\nprint(#dead)';
+test(`extension decorates Lua tables and ignores Lua operators in ${scheme} documents`, async () => {
+  const source = 'local MARKER = { color = { r = 0, g = 170, b = 255, a = 150 } }\nfor index = 1, #definition.Sections do\nprint(#dead)\nlocal distance = (p.x - destination.X)^2 + (p.y - destination.Y)^2';
   const applied = new Map();
   const editor = {
     document: { languageId: 'plaintext', fileName: '/project/client.lua', uri: { scheme },

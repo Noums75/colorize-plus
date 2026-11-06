@@ -31,6 +31,8 @@ Lua table matching recognizes direct color-like assignments and keyed RGB/RGBA e
 
 In Lua files, `#` is treated as the length operator outside strings and comments. Expressions such as `#definition.Sections`, `#def` and `#dead` are never highlighted as colors; quoted hexadecimal colors still work.
 
+FiveM codes in Lua are recognized only inside quoted or long-bracket strings. Expressions such as `(p.x - destination.X)^2` use Lua's power operator and are not decorated. FiveM codes in Lua comments are also ignored.
+
 ## Install and update in VS Code
 
 Download the `.vsix` from the [latest GitHub release](https://github.com/Noums75/colorize-plus/releases/latest). In VS Code, run **Extensions: Install from VSIX…** and select the file. Reload VS Code after installation. Versions before 2.1.5 may require this manual installation on recent VS Code versions to acquire the corrected updater.

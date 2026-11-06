@@ -223,7 +223,7 @@ function findClosingBrace(text, openIndex) {
 }
 
 // Retain offsets while distinguishing Lua code from strings and comments. A
-// leading # is the length operator in code, even for identifiers such as dead.
+// leading # is a length operator; ^ is exponentiation outside strings.
 function luaLiteralRanges(text) {
   const ranges = [];
   const tokens = /--\[(=*)\[|--[^\r\n]*|\[(=*)\[|["']/g;
@@ -231,7 +231,7 @@ function luaLiteralRanges(text) {
   while ((match = tokens.exec(text))) {
     const start = match.index;
     if (match[0].startsWith('--') && match[1] === undefined) {
-      ranges.push([start, tokens.lastIndex]);
+      ranges.push([start, tokens.lastIndex, 'comment']);
       continue;
     }
     if (match[1] !== undefined || match[2] !== undefined) {
@@ -246,7 +246,7 @@ function luaLiteralRanges(text) {
       }
       tokens.lastIndex = Math.min(end, text.length);
     }
-    ranges.push([start, tokens.lastIndex]);
+    ranges.push([start, tokens.lastIndex, match[0].startsWith('--') ? 'comment' : 'string']);
   }
   return ranges;
 }
@@ -344,6 +344,7 @@ function parseColors(text, options = {}) {
   const p = (name) => priority.has(name) ? priority.get(name) : 999;
   const luaRanges = options.languageId === 'lua' ? luaLiteralRanges(text) : null;
   const hashIsColor = (match) => !luaRanges || luaRanges.some(([start, end]) => match.index >= start && match.index < end);
+  const fiveMIsColor = (match) => !luaRanges || luaRanges.some(([start, end, kind]) => kind === 'string' && match.index >= start && match.index < end);
   if (enabled.has('HEXA')) {
     pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'HEXA', (m) => hashIsColor(m) ? m[0] : null, p('HEXA'));
     if (!enabled.has('LUA')) pushMatches(results, text, /\b0x([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})\b/gi, 'HEXA', (m) => normalizeHex('0x', m[1]), p('HEXA'));
@@ -364,8 +365,8 @@ function parseColors(text, options = {}) {
     }
   }
   if (enabled.has('FIVEM') && options.fiveM !== false) {
-    pushMatches(results, text, /\^(\d)/g, 'FIVEM', (m) => FIVEM_CARET[m[1]], p('FIVEM'));
-    pushMatches(results, text, /~([rgbypocmuw])~/gi, 'FIVEM', (m) => FIVEM_TILDE[m[1].toLowerCase()], p('FIVEM'));
+    pushMatches(results, text, /\^(\d)/g, 'FIVEM', (m) => fiveMIsColor(m) ? FIVEM_CARET[m[1]] : null, p('FIVEM'));
+    pushMatches(results, text, /~([rgbypocmuw])~/gi, 'FIVEM', (m) => fiveMIsColor(m) ? FIVEM_TILDE[m[1].toLowerCase()] : null, p('FIVEM'));
   }
   if (enabled.has('NAMES') || enabled.has('BROWSERS_COLORS')) {
     const names = Object.keys(NAMES).join('|'); const namePriority = Math.min(p('NAMES'), p('BROWSERS_COLORS'));

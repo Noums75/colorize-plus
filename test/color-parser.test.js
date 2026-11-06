@@ -92,6 +92,43 @@ test('parses FiveM caret and tilde formatting codes', () => {
   assert.deepEqual(colors.map((item) => item.color), ['#f44336', '#ffffff', '#ffeb3b']);
 });
 
+test('does not confuse the reported Lua squared-distance expression with FiveM colors', () => {
+  const source = "elseif job.phase == 'transporting' and (p.x - destination.X)^2 + (p.y - destination.Y)^2 < 225 then";
+  assert.deepEqual(parseColors(source, { languageId: 'lua' }), []);
+});
+
+test('Lua powers stay undecorated even when only FiveM syntax is enabled', () => {
+  const source = 'local squared = 2^2\nlocal cubed = value ^ 3\nlocal power = distance^9';
+  assert.deepEqual(parseColors(source, { languageId: 'lua', syntaxes: ['FIVEM'] }), []);
+});
+
+test('Lua FiveM colors are limited to strings, including multiline and escaped quotes', () => {
+  const source = String.raw`local message = "He said \"^2ready^7\""
+local status = '^1Error'
+local text = [==[
+  ~g~OK ^3warning
+]==]
+local squared = distance^2`;
+  const colors = parseColors(source, { languageId: 'lua', syntaxes: ['FIVEM'] });
+  assert.deepEqual(colors.map(({ text, color }) => [text, color]), [
+    ['^2', '#4caf50'], ['^7', '#ffffff'], ['^1', '#f44336'], ['~g~', '#4caf50'], ['^3', '#ffeb3b']
+  ]);
+  for (const match of colors) assert.equal(source.slice(match.start, match.end), match.text);
+});
+
+test('Lua comments containing quotes and FiveM codes do not become strings', () => {
+  const source = `-- "^2" and ~r~ are examples in a comment
+--[=[ '^3' and ~g~ are still comments ]=]
+local squared = distance^2
+local message = '^2ready'`;
+  assert.deepEqual(parseColors(source, { languageId: 'lua', syntaxes: ['FIVEM'] }).map(({ text }) => text), ['^2']);
+});
+
+test('non-Lua text retains existing FiveM formatting support', () => {
+  assert.deepEqual(parseColors('^2ready ~r~error', { languageId: 'plaintext', syntaxes: ['FIVEM'] }).map(({ text }) => text),
+    ['^2', '~r~']);
+});
+
 test('honours syntax and Lua feature switches', () => {
   assert.deepEqual(parseColors('^1 #fff', { syntaxes: ['HEXA'] }).map((item) => item.text), ['#fff']);
   assert.equal(parseColors('color = {1, 2, 3}', { luaTables: false }).length, 0);

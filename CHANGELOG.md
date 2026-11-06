@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.1
+
+- Stop highlighting Lua powers such as `(p.x - destination.X)^2` as FiveM color codes.
+- Recognize FiveM formatting only inside Lua strings, including escaped quotes and multiline long-bracket strings; ignore it in executable code and comments.
+
 ## 2.2.0
 
 - Check for updates on every VS Code launch after three seconds; remove the daily throttle that could skip startup checks.
