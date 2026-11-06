@@ -210,6 +210,82 @@ function browserNameColor(text, match) {
   return hasColorLikeQuotedAssignment(text, match.index) ? color : null;
 }
 
+function skipScriptTrivia(text, index) {
+  while (index < text.length) {
+    if (/\s/.test(text[index])) index += 1;
+    else if (text.startsWith('/*', index)) {
+      const end = text.indexOf('*/', index + 2);
+      index = end < 0 ? text.length : end + 2;
+    } else if (text.startsWith('//', index)) {
+      const end = text.indexOf('\n', index + 2);
+      index = end < 0 ? text.length : end + 1;
+    } else break;
+  }
+  return index;
+}
+
+function scriptStringEnd(text, start) {
+  const quote = text[start];
+  let index = start + 1;
+  while (index < text.length) {
+    if (text[index] === '\\') index += 2;
+    else if (text[index++] === quote) break;
+  }
+  return Math.min(index, text.length);
+}
+
+function selectorStringRanges(text) {
+  const ranges = [];
+  const calls = /(?<![\p{ID_Continue}$])(?:querySelector(?:All)?|getElementById|getElementsByClassName|getElementsByTagName|closest|matches|select(?:All)?|all|qs|qsa|\$\$?)(?![\p{ID_Continue}$])/gu;
+  const isQuote = (char) => char === '"' || char === "'" || char === '`';
+  for (const call of text.matchAll(calls)) {
+    let index = skipScriptTrivia(text, call.index + call[0].length);
+    // Also recognize document['querySelector'](...).
+    const accessQuote = text[call.index - 1];
+    if (isQuote(accessQuote) && text[index] === accessQuote) {
+      if (!text.slice(0, call.index - 1).trimEnd().endsWith('[')) continue;
+      index = skipScriptTrivia(text, index + 1);
+      if (text[index] !== ']') continue;
+      index = skipScriptTrivia(text, index + 1);
+    }
+    if (text.startsWith('?.', index)) index = skipScriptTrivia(text, index + 2);
+    // TypeScript DOM calls may have type arguments before the opening parenthesis.
+    if (text[index] === '<') {
+      let depth = 1;
+      index += 1;
+      while (index < text.length && depth) {
+        index = skipScriptTrivia(text, index);
+        if (isQuote(text[index])) index = scriptStringEnd(text, index);
+        else {
+          if (text[index] === '<') depth += 1;
+          if (text[index] === '>') depth -= 1;
+          index += 1;
+        }
+      }
+      index = skipScriptTrivia(text, index);
+    }
+    if (text.startsWith('?.', index)) index = skipScriptTrivia(text, index + 2);
+    if (text[index] !== '(') continue;
+    index = skipScriptTrivia(text, index + 1);
+    let groups = 0;
+    while (text[index] === '(') { groups += 1; index = skipScriptTrivia(text, index + 1); }
+    if (text.startsWith('String.raw', index)) index = skipScriptTrivia(text, index + 'String.raw'.length);
+    if (!isQuote(text[index])) continue;
+    const end = scriptStringEnd(text, index);
+    // $ can create HTML or accept a ready callback; those contain real colors.
+    if (call[0] !== '$' || !text.slice(index + 1, end - 1).trimStart().startsWith('<')) ranges.push([index, end]);
+    if (call[0] === '$') {
+      index = skipScriptTrivia(text, end);
+      while (groups > 0 && text[index] === ')') { groups -= 1; index = skipScriptTrivia(text, index + 1); }
+      if (text[index] !== ',') continue;
+      index = skipScriptTrivia(text, index + 1);
+      // jQuery's second string argument is a selector context, not a color.
+      if (isQuote(text[index])) ranges.push([index, scriptStringEnd(text, index)]);
+    }
+  }
+  return ranges;
+}
+
 function findClosingBrace(text, openIndex) {
   let depth = 0;
   for (let index = openIndex; index < text.length; index += 1) {
@@ -298,7 +374,7 @@ function pushLuaPaletteTables(results, text, priority) {
 }
 
 function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-function colorFromValue(value, syntaxes) { return parseColors(value, { syntaxes, variables: false, luaTables: false, fiveM: false })[0]?.color || null; }
+function colorFromValue(value, syntaxes) { return parseColors(value, { languageId: 'css', syntaxes, variables: false, luaTables: false, fiveM: false })[0]?.color || null; }
 
 function extractVariableDefinitions(text, options = {}) {
   const families = new Set(options.variableFamilies || ['CSS', 'SASS', 'LESS', 'STYLUS']);
@@ -343,7 +419,10 @@ function parseColors(text, options = {}) {
   const enabled = new Set(requested); const results = []; const priority = new Map(requested.map((name, index) => [name, index]));
   const p = (name) => priority.has(name) ? priority.get(name) : 999;
   const luaRanges = options.languageId === 'lua' ? luaLiteralRanges(text) : null;
-  const hashIsColor = (match) => !luaRanges || luaRanges.some(([start, end]) => match.index >= start && match.index < end);
+  const stylesheet = ['css', 'scss', 'sass', 'less', 'stylus', 'postcss', 'sss'].includes(options.languageId);
+  const selectors = luaRanges || stylesheet ? [] : selectorStringRanges(text);
+  const hashIsColor = (match) => (!luaRanges || luaRanges.some(([start, end]) => match.index >= start && match.index < end))
+    && !selectors.some(([start, end]) => match.index >= start && match.index < end);
   const fiveMIsColor = (match) => !luaRanges || luaRanges.some(([start, end, kind]) => kind === 'string' && match.index >= start && match.index < end);
   if (enabled.has('HEXA')) {
     pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'HEXA', (m) => hashIsColor(m) ? m[0] : null, p('HEXA'));

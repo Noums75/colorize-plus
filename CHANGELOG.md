@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.2
+
+- Stop highlighting hexadecimal-looking IDs such as `#add` inside JavaScript, TypeScript and embedded HTML selector calls.
+- Recognize DOM query methods, query helpers and jQuery selector contexts, including multiline and template strings, while preserving real CSS colors and jQuery HTML construction.
+
 ## 2.2.1
 
 - Stop highlighting Lua powers such as `(p.x - destination.X)^2` as FiveM color codes.

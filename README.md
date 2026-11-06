@@ -18,6 +18,8 @@ Colorize Plus keeps the original **Colorize** settings and behavior while adding
 - Optional workspace-wide variable discovery with `colorize.enable_search_variables`, so a variable declared in one matching file can colorize references in another.
 - The active-line hiding behavior and Colorize status-bar indicator.
 
+Hex-looking IDs such as `#add` are ignored inside selector strings passed to DOM query methods, helpers such as `all`, `$` and `$$`, and jQuery selector contexts. The same value still displays as a color in CSS declarations and JavaScript style assignments such as `element.style.color = '#add'`.
+
 ## Lua & FiveM additions
 
 - Lua hexadecimal integers such as `0xFF8800`.

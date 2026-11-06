@@ -22,12 +22,18 @@ function loadWithVscode(filename, vscode, overrides = {}) {
   return module.exports;
 }
 
+for (const scenario of [
+  { name: 'Lua operators', fileName: '/project/client.lua', languageId: 'plaintext', color: '#00aaff96', text: '{ r = 0, g = 170, b = 255, a = 150 }',
+    source: 'local MARKER = { color = { r = 0, g = 170, b = 255, a = 150 } }\nfor index = 1, #definition.Sections do\nprint(#dead)\nlocal distance = (p.x - destination.X)^2 + (p.y - destination.Y)^2' },
+  { name: 'JavaScript selectors', fileName: '/project/client.js', languageId: 'javascript', color: '#add', text: '#add',
+    source: "all('[data-intent], #add, #logging, .row-action'); document.querySelector('#add').style.color = '#add';" }
+]) {
 for (const scheme of ['file', 'vscode-remote']) {
-test(`extension decorates Lua tables and ignores Lua operators in ${scheme} documents`, async () => {
-  const source = 'local MARKER = { color = { r = 0, g = 170, b = 255, a = 150 } }\nfor index = 1, #definition.Sections do\nprint(#dead)\nlocal distance = (p.x - destination.X)^2 + (p.y - destination.Y)^2';
+test(`extension distinguishes colors from ${scenario.name} in ${scheme} documents`, async () => {
+  const { source } = scenario;
   const applied = new Map();
   const editor = {
-    document: { languageId: 'plaintext', fileName: '/project/client.lua', uri: { scheme },
+    document: { languageId: scenario.languageId, fileName: scenario.fileName, uri: { scheme },
       getText: () => source, positionAt: (offset) => ({ line: 0, character: offset }) },
     selections: [], setDecorations: (decoration, ranges) => applied.set(decoration, ranges)
   };
@@ -55,10 +61,11 @@ test(`extension decorates Lua tables and ignores Lua operators in ${scheme} docu
   await extension.activate({ subscriptions: [] });
   assert.equal(applied.size, 1);
   const [[decoration, ranges]] = applied;
-  assert.equal(decoration.backgroundColor, '#00aaff96');
+  assert.equal(decoration.backgroundColor, scenario.color);
   assert.equal(ranges.length, 1);
-  assert.equal(source.slice(ranges[0].start.character, ranges[0].end.character), '{ r = 0, g = 170, b = 255, a = 150 }');
+  assert.equal(source.slice(ranges[0].start.character, ranges[0].end.character), scenario.text);
   extension.deactivate();
 });
+}
 }
 
