@@ -26,7 +26,13 @@ for (const scenario of [
   { name: 'Lua operators', fileName: '/project/client.lua', languageId: 'plaintext', color: '#00aaff96', text: '{ r = 0, g = 170, b = 255, a = 150 }',
     source: 'local MARKER = { color = { r = 0, g = 170, b = 255, a = 150 } }\nfor index = 1, #definition.Sections do\nprint(#dead)\nlocal distance = (p.x - destination.X)^2 + (p.y - destination.Y)^2' },
   { name: 'JavaScript selectors', fileName: '/project/client.js', languageId: 'javascript', color: '#add', text: '#add',
-    source: "all('[data-intent], #add, #logging, .row-action'); document.querySelector('#add').style.color = '#add';" }
+    source: "all('[data-intent], #add, #logging, .row-action'); document.querySelector('#add').style.color = '#add';" },
+  { name: 'Kotlin hexadecimal masks', fileName: '/project/DashboardTheme.kt', languageId: 'plaintext', color: '#203f32ff', text: '0xFF203F32',
+    source: 'internal val ProgressBackground = Color(0xFF203F32)\nval mask = 0xFF203F32' },
+  { name: 'Kotlin script identifiers', fileName: '/project/palette.kts', languageId: 'plaintext', color: '#ffffff', text: 'Color.White',
+    source: 'val blue = Color.White' },
+  { name: 'Kotlin identifiers in files with a custom extension', fileName: '/project/palette.txt', languageId: 'kotlin', color: '#888888', text: 'Color.Gray',
+    source: 'val gray = Color.Gray' }
 ]) {
 for (const scheme of ['file', 'vscode-remote']) {
 test(`extension distinguishes colors from ${scenario.name} in ${scheme} documents`, async () => {

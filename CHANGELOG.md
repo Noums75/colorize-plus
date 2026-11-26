@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.0
+
+- Preview Jetpack Compose ARGB literals and named colors such as `Color.White` in `.kt` and `.kts` files by default.
+- Present Colorize Plus in the README as a VS Code color preview extension for web development, Kotlin Compose, Lua and FiveM.
+
 ## 2.2.2
 
 - Stop highlighting hexadecimal-looking IDs such as `#add` inside JavaScript, TypeScript and embedded HTML selector calls.

@@ -6,21 +6,23 @@
 
 **Author:** Noums
 
-Colorize Plus keeps the original **Colorize** settings and behavior while adding first-class Lua and FiveM support. Existing Colorize workspaces can keep their familiar configuration, and the Lua/FiveM additions remain enabled independently.
+Colorize Plus previews colors directly in VS Code across web files, Kotlin Compose and Lua. The project began with FiveM support and will continue to expand to more languages and color formats.
 
-## Restored Colorize features
+## Supported color formats
 
-- CSS color names (the complete browser color set), hexadecimal colors with `#` or `0x`, RGB/RGBA, HSL/HSLA, ARGB, OKLAB and OKLCH.
-- Legacy `colorize.include` and `colorize.exclude` glob filtering, alongside the existing `colorize.files` and `colorize.files_extensions` compatibility settings.
-- Decoration styles: `background`, `underline`, `outline`, `dot` and `square-dot`.
-- Optional color marks in the overview ruler / scrollbar with `colorize.ruler_decoration`.
-- CSS, Sass, Less and Stylus variable references.
-- Optional workspace-wide variable discovery with `colorize.enable_search_variables`, so a variable declared in one matching file can colorize references in another.
-- The active-line hiding behavior and Colorize status-bar indicator.
+### Web development
+
+- Named CSS colors, hexadecimal colors with `#` or `0x`, RGB/RGBA, HSL/HSLA, ARGB, OKLAB and OKLCH.
+- Color values in JavaScript, TypeScript, HTML, Vue and Svelte files.
+- CSS, Sass, Less and Stylus variable references. Optional workspace-wide discovery lets references inherit colors from declarations in other files.
 
 Hex-looking IDs such as `#add` are ignored inside selector strings passed to DOM query methods, helpers such as `all`, `$` and `$$`, and jQuery selector contexts. The same value still displays as a color in CSS declarations and JavaScript style assignments such as `element.style.color = '#add'`.
 
-## Lua & FiveM additions
+### Kotlin Compose
+
+Compose colors are enabled by default in `.kt` and `.kts` files. `Color(0xFF203F32)` displays `#203F32` with the opacity specified by the leading byte. `HEXA` or `ARGB` enables these literals, and `BROWSERS_COLORS` or `NAMES` enables named constants such as `Color.White`.
+
+### Lua and FiveM
 
 - Lua hexadecimal integers such as `0xFF8800`.
 - Color-assigned Lua tables such as `color = { 255, 136, 0, 200 }`.
@@ -34,6 +36,15 @@ Lua table matching recognizes direct color-like assignments and keyed RGB/RGBA e
 In Lua files, `#` is treated as the length operator outside strings and comments. Expressions such as `#definition.Sections`, `#def` and `#dead` are never highlighted as colors; quoted hexadecimal colors still work.
 
 FiveM codes in Lua are recognized only inside quoted or long-bracket strings. Expressions such as `(p.x - destination.X)^2` use Lua's power operator and are not decorated. FiveM codes in Lua comments are also ignored.
+
+## Editor features
+
+Colorize Plus supports the original Colorize settings for existing workspaces.
+
+- Choose a preview style from `background`, `underline`, `outline`, `dot` and `square-dot`.
+- Show color marks in the scrollbar with `colorize.ruler_decoration`.
+- Select files and folders with `colorize.include`, `colorize.exclude`, `colorize.files` and `colorize.files_extensions`.
+- Hide previews on the active line with `colorize.hide_current_line_decorations`. The status bar shows whether previews are active for the current file.
 
 ## Install and update in VS Code
 
@@ -77,7 +88,7 @@ For a private repository, also install [GitHub CLI](https://cli.github.com/) and
 
 ```jsonc
 {
-  "colorize.languages": ["css", "sass", "scss", "less", "stylus", "lua"],
+  "colorize.languages": ["css", "sass", "scss", "less", "stylus", "lua", "kotlin"],
   "colorize.include": ["**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.styl"],
   "colorize.exclude": ["**/node_modules", "**/dist", "**/tests"],
   "colorize.files": ["**/*.js", "**/*.html", "**/*.lua"],
@@ -94,7 +105,7 @@ For a private repository, also install [GitHub CLI](https://cli.github.com/) and
 }
 ```
 
-`ARGB` is available in `colorize.colorized_colors` but is not enabled by default because 4/8-digit hexadecimal values are ambiguous between RGBA and ARGB. Put `ARGB` before `HEXA` in the array when ARGB interpretation should win.
+Hexadecimal web colors use RGBA by default. To read values such as `#80FF8800` as ARGB, enable `ARGB` and place it before `HEXA` in `colorize.colorized_colors`.
 
 Workspace variable discovery is intentionally disabled by default in Colorize Plus to avoid an unnecessary startup scan. Turn on `colorize.enable_search_variables` when you need references to declarations from other files.
 

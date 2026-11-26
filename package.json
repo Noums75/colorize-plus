@@ -1,8 +1,8 @@
 {
   "name": "vscode-colorize",
   "displayName": "Colorize Plus",
-  "description": "Visualize CSS colors with legacy Colorize behavior plus first-class Lua and FiveM support.",
-  "version": "2.2.2",
+  "description": "Preview colors directly in VS Code across web files, Kotlin Compose, Lua and FiveM.",
+  "version": "2.3.0",
   "author": "Noums",
   "publisher": "colorize-fivem",
   "license": "MIT",
@@ -15,7 +15,7 @@
     "node": ">=22"
   },
   "categories": ["Other"],
-  "keywords": ["color", "colour", "lua", "fivem", "css", "scss", "less", "stylus"],
+  "keywords": ["color", "colour", "css", "scss", "less", "stylus", "kotlin", "compose", "lua", "fivem"],
   "activationEvents": ["onStartupFinished"],
   "main": "./src/extension.js",
   "icon": "assets/icon.png",
@@ -58,9 +58,9 @@
         },
         "colorize.languages": {
           "type": "array",
-          "default": ["css", "sass", "scss", "less", "postcss", "sss", "stylus", "xml", "svg", "lua"],
+          "default": ["css", "sass", "scss", "less", "postcss", "sss", "stylus", "xml", "svg", "lua", "kotlin"],
           "items": { "type": "string" },
-          "description": "Language identifiers in which colors are decorated. Lua is enabled by default."
+          "description": "Language identifiers in which colors are decorated. Lua and Kotlin are enabled by default."
         },
         "colorize.include": {
           "type": "array",
@@ -82,7 +82,7 @@
         },
         "colorize.files_extensions": {
           "type": "array",
-          "default": [".css", ".scss", ".sass", ".less", ".styl", ".html", ".htm", ".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".lua"],
+          "default": [".css", ".scss", ".sass", ".less", ".styl", ".html", ".htm", ".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".lua", ".kt", ".kts"],
           "items": { "type": "string" },
           "description": "File extensions supported in addition to language identifiers. Kept for compatibility with Colorize."
         },

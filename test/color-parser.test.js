@@ -9,6 +9,54 @@ test('parses web colors without breaking legacy formats', () => {
   assert.deepEqual(colors.map((item) => item.color), ['#f00', '#0080ff80', '#0000ff']);
 });
 
+test('uses the ARGB byte order and named colors from Kotlin Compose', () => {
+  const source = `import androidx.compose.ui.graphics.Color
+    internal val ProgressBackground = Color(0xFF203F32)
+    val translucent = androidx.compose.ui.graphics.Color(
+      color = 0X80_29_56_42L,
+    )
+    val transparentTint = Color(0xFFFFFF)
+    val onPrimary = Color.White
+    val accent = Color.Green
+    val neutral = Color.Gray`;
+  const colors = parseColors(source, { languageId: 'kotlin' });
+  assert.deepEqual(colors.map(({ text, color }) => [text, color]), [
+    ['0xFF203F32', '#203f32ff'], ['0X80_29_56_42L', '#29564280'], ['0xFFFFFF', '#ffffff00'],
+    ['Color.White', '#ffffff'], ['Color.Green', '#00ff00'], ['Color.Gray', '#888888']
+  ]);
+  for (const match of colors) assert.equal(source.slice(match.start, match.end), match.text);
+});
+
+test('keeps Kotlin masks, identifiers and Compose examples in comments and strings undecorated', () => {
+  const source = [
+    'val mask = 0xFF203F32',
+    'val red = OtherColor(0xFF203F32)',
+    'val unknown = Color.White2',
+    'val packed64 = Color(0x1234567890ABCDEFuL)',
+    'val snippet = "Color(0xFF203F32) and \\"Color.White\\""',
+    'val raw = """Color.White\nColor(0xFF203F32)"""',
+    'val template = "${describe("Color.White", Color.Black)}"',
+    '// Color(0xFF203F32)',
+    '/* /* Color.White */ Color(0xFF203F32) */',
+    'val accent = Color(/* ARGB */ 0xFF203F32)',
+    'val css = "#add"'
+  ].join('\n');
+  const colors = parseColors(source, { languageId: 'kotlin' });
+  assert.deepEqual(colors.map(({ text, color }) => [text, color]), [
+    ['Color.Black', '#000000'], ['0xFF203F32', '#203f32ff'], ['#add', '#add']
+  ]);
+});
+
+test('honours the existing hex and name syntax settings for Compose colors', () => {
+  const source = 'val accent = Color(0x80FF8800)\nval foreground = Color.White';
+  const recognized = (syntaxes) => parseColors(source, { languageId: 'kotlin', syntaxes }).map(({ color }) => color);
+  assert.deepEqual(recognized(['HEXA', 'ARGB']), ['#ff880080']);
+  assert.deepEqual(recognized(['ARGB']), ['#ff880080']);
+  assert.deepEqual(recognized(['BROWSERS_COLORS']), ['#ffffff']);
+  assert.deepEqual(recognized(['NAMES']), ['#ffffff']);
+  assert.deepEqual(recognized(['LUA', 'RGB']), []);
+});
+
 test('parses Lua hex integers and named color tables', () => {
   const colors = parseColors('local primary = 0x12ABEF\nlocal color = { 255, 64, 0, 128 }');
   assert.deepEqual(colors.map((item) => [item.syntax, item.color]), [['LUA', '#12ABEF'], ['LUA', '#ff400080']]);

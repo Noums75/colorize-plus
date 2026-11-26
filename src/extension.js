@@ -132,6 +132,13 @@ function isSupported(document, config) {
     || files.some((glob) => matchesGlob(document.fileName, glob));
 }
 
+function parserLanguageId(document) {
+  const ext = path.extname(document.fileName).toLowerCase();
+  if (ext === '.lua') return 'lua';
+  if (ext === '.kt' || ext === '.kts') return 'kotlin';
+  return document.languageId;
+}
+
 function inferExtensionPatterns(languages) {
   const found = new Set();
   for (const extension of vscode.extensions.all) {
@@ -217,7 +224,7 @@ function update(editor = vscode.window.activeTextEditor) {
   const variableFamilies = config.get('colorized_variables', ['CSS', 'SASS', 'LESS']);
   const grouped = new Map();
   for (const match of parseColors(editor.document.getText(), {
-    languageId: path.extname(editor.document.fileName).toLowerCase() === '.lua' ? 'lua' : editor.document.languageId,
+    languageId: parserLanguageId(editor.document),
     syntaxes: config.get('colorized_colors'),
     luaTables: config.get('lua.enableTables'),
     fiveM: config.get('lua.enableFiveM'),

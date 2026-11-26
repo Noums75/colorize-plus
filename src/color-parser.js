@@ -19,6 +19,11 @@ const FIVEM_TILDE = Object.freeze({
   r: '#f44336', g: '#4caf50', b: '#42a5f5', y: '#ffeb3b', p: '#9c27b0',
   o: '#ff9800', c: '#9e9e9e', m: '#616161', u: '#000000', w: '#ffffff'
 });
+const COMPOSE_COLORS = new Map([
+  ['Black', '#000000'], ['DarkGray', '#444444'], ['Gray', '#888888'], ['LightGray', '#cccccc'],
+  ['White', '#ffffff'], ['Red', '#ff0000'], ['Green', '#00ff00'], ['Blue', '#0000ff'],
+  ['Yellow', '#ffff00'], ['Cyan', '#00ffff'], ['Magenta', '#ff00ff'], ['Transparent', '#00000000']
+]);
 
 function clamp(value, min = 0, max = 255) { return Math.min(max, Math.max(min, value)); }
 function byteHex(value) { return Math.round(clamp(value)).toString(16).padStart(2, '0'); }
@@ -203,11 +208,90 @@ function hasColorLikeQuotedAssignment(text, index) {
   return /colou?r|background|border|fill|stroke/i.test(key);
 }
 
-function browserNameColor(text, match) {
+function browserNameColor(text, match, allowBareNames) {
   const color = NAMES[match[0].toLowerCase()];
   if (!color) return null;
-  if (!isInsideQuotedString(text, match.index)) return color;
+  if (!isInsideQuotedString(text, match.index)) return allowBareNames ? color : null;
   return hasColorLikeQuotedAssignment(text, match.index) ? color : null;
+}
+
+function kotlinBlockCommentEnd(text, start) {
+  const markers = /\/\*|\*\//g;
+  markers.lastIndex = start;
+  let depth = 1;
+  let marker;
+  while (depth > 0 && (marker = markers.exec(text))) {
+    depth += marker[0] === '/*' ? 1 : -1;
+  }
+  return depth > 0 ? text.length : markers.lastIndex;
+}
+
+function maskKotlinNonCode(text) {
+  const codeTokens = /\/\*|\/\/[^\r\n]*|"""|["'`{}]/g;
+  const literalTokens = {
+    '"': /\\[^\r\n]|\$\{|["\r\n]/g,
+    '"""': /\$\{|"{3,}/g,
+    "'": /\\[^\r\n]|['\r\n]/g,
+    '`': /[`\r\n]/g
+  };
+  const interpolations = [];
+  let code = '';
+  let copied = 0;
+  let cursor = 0;
+  let braceDepth = 0;
+  let literal;
+  while (cursor < text.length) {
+    const tokens = literal ?? codeTokens;
+    tokens.lastIndex = cursor;
+    const token = tokens.exec(text);
+    if (!token) break;
+    cursor = tokens.lastIndex;
+    const value = token[0];
+    if (literal) {
+      if (value.startsWith('\\')) continue;
+      code += '\0'.repeat(cursor - copied);
+      copied = cursor;
+      // Expressions inside ${...} are code and can contain their own literals.
+      if (value === '${') interpolations.push({ braceDepth, literal });
+      literal = undefined;
+    } else if (value === '{') {
+      braceDepth += 1;
+    } else if (value === '}') {
+      if (interpolations.at(-1)?.braceDepth === braceDepth) {
+        literal = interpolations.pop().literal;
+        code += text.slice(copied, cursor);
+        copied = cursor;
+      } else braceDepth -= 1;
+    } else {
+      code += text.slice(copied, token.index);
+      copied = token.index;
+      if (value.startsWith('/')) {
+        if (value === '/*') cursor = kotlinBlockCommentEnd(text, cursor);
+        code += ' '.repeat(cursor - copied);
+        copied = cursor;
+      } else literal = literalTokens[value];
+    }
+  }
+  return code + (literal ? '\0'.repeat(text.length - copied) : text.slice(copied));
+}
+
+function pushComposeColors(results, text, priority) {
+  const hexPriority = Math.min(priority.get('HEXA') ?? Infinity, priority.get('ARGB') ?? Infinity);
+  const namePriority = Math.min(priority.get('BROWSERS_COLORS') ?? Infinity, priority.get('NAMES') ?? Infinity);
+  if (hexPriority === Infinity && namePriority === Infinity) return;
+
+  const colors = /(?<![\p{ID_Continue}])Color(?:\s*\(\s*(?:color\s*=\s*)?(0[xX][\da-fA-F](?:_*[\da-fA-F]){0,7}L?)\s*,?\s*\)|\s*\.\s*([A-Za-z]+)(?![\p{ID_Continue}]))/dgu;
+  for (const match of maskKotlinNonCode(text).matchAll(colors)) {
+    const [, literal, member] = match;
+    const matchPriority = literal ? hexPriority : namePriority;
+    if (matchPriority === Infinity) continue;
+    const color = literal
+      ? normalizeHex('0x', literal.slice(2).replace(/[_L]/g, '').padStart(8, '0'), true)
+      : COMPOSE_COLORS.get(member);
+    if (!color) continue;
+    const [start, end] = match.indices[literal ? 1 : 0];
+    results.push({ start, end, color, syntax: literal ? 'ARGB' : 'NAMES', text: text.slice(start, end), priority: matchPriority });
+  }
 }
 
 function skipScriptTrivia(text, index) {
@@ -418,25 +502,28 @@ function parseColors(text, options = {}) {
   const requested = options.syntaxes || ['BROWSERS_COLORS', 'HEXA', 'RGB', 'HSL', 'OKLAB', 'OKLCH', 'LUA', 'FIVEM'];
   const enabled = new Set(requested); const results = []; const priority = new Map(requested.map((name, index) => [name, index]));
   const p = (name) => priority.has(name) ? priority.get(name) : 999;
+  const kotlin = options.languageId === 'kotlin';
+  const bareHex = !kotlin && !enabled.has('LUA');
   const luaRanges = options.languageId === 'lua' ? luaLiteralRanges(text) : null;
   const stylesheet = ['css', 'scss', 'sass', 'less', 'stylus', 'postcss', 'sss'].includes(options.languageId);
   const selectors = luaRanges || stylesheet ? [] : selectorStringRanges(text);
   const hashIsColor = (match) => (!luaRanges || luaRanges.some(([start, end]) => match.index >= start && match.index < end))
     && !selectors.some(([start, end]) => match.index >= start && match.index < end);
   const fiveMIsColor = (match) => !luaRanges || luaRanges.some(([start, end, kind]) => kind === 'string' && match.index >= start && match.index < end);
+  if (kotlin) pushComposeColors(results, text, priority);
   if (enabled.has('HEXA')) {
     pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'HEXA', (m) => hashIsColor(m) ? m[0] : null, p('HEXA'));
-    if (!enabled.has('LUA')) pushMatches(results, text, /\b0x([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})\b/gi, 'HEXA', (m) => normalizeHex('0x', m[1]), p('HEXA'));
+    if (bareHex) pushMatches(results, text, /\b0x([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})\b/gi, 'HEXA', (m) => normalizeHex('0x', m[1]), p('HEXA'));
   }
   if (enabled.has('ARGB')) {
     pushMatches(results, text, /#[\da-f]{3,4}(?![\w-])|#[\da-f]{6}(?:[\da-f]{2})?(?![\w-])/gi, 'ARGB', (m) => hashIsColor(m) ? normalizeHex('#', m[0].slice(1), true) : null, p('ARGB'));
-    if (!enabled.has('LUA')) pushMatches(results, text, /\b0x([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})\b/gi, 'ARGB', (m) => normalizeHex('0x', m[1], true), p('ARGB'));
+    if (bareHex) pushMatches(results, text, /\b0x([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})\b/gi, 'ARGB', (m) => normalizeHex('0x', m[1], true), p('ARGB'));
   }
   if (enabled.has('RGB')) pushMatches(results, text, /rgba?\([^\n)]*\)/gi, 'RGB', (m) => parseRgbFunction(m[0]), p('RGB'));
   if (enabled.has('HSL')) pushMatches(results, text, /hsla?\([^\n)]*\)/gi, 'HSL', (m) => parseHslFunction(m[0]), p('HSL'));
   if (enabled.has('OKLAB')) pushMatches(results, text, /oklab\([^\n)]*\)/gi, 'OKLAB', (m) => parseOklabFunction(m[0], false), p('OKLAB'));
   if (enabled.has('OKLCH')) pushMatches(results, text, /oklch\([^\n)]*\)/gi, 'OKLCH', (m) => parseOklabFunction(m[0], true), p('OKLCH'));
-  if (enabled.has('LUA')) {
+  if (!kotlin && enabled.has('LUA')) {
     pushMatches(results, text, /\b0x([\da-f]{6}|[\da-f]{8})\b/gi, 'LUA', (m) => `#${m[1]}`, p('LUA'));
     if (options.luaTables !== false) {
       pushLuaColorTables(results, text, p('LUA'));
@@ -451,7 +538,7 @@ function parseColors(text, options = {}) {
     const names = Object.keys(NAMES).join('|'); const namePriority = Math.min(p('NAMES'), p('BROWSERS_COLORS'));
     // JavaScript's \b treats accented letters as separators (e.g. redémarrage).
     const wordChar = '[\\p{L}\\p{M}\\p{N}\\p{Pc}\\u200c\\u200d]';
-    pushMatches(results, text, new RegExp(`(?<!${wordChar})(?:${names})(?!${wordChar})`, 'giu'), 'NAMES', (m) => browserNameColor(text, m), namePriority);
+    pushMatches(results, text, new RegExp(`(?<!${wordChar})(?:${names})(?!${wordChar})`, 'giu'), 'NAMES', (m) => browserNameColor(text, m, !kotlin), namePriority);
   }
   if (options.variables) parseVariables(text, results, { ...options, syntaxes: requested });
   return results.sort((a, b) => a.start - b.start || a.priority - b.priority || b.end - a.end)
